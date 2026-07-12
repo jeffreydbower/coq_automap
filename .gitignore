@@ -1,0 +1,29 @@
+# Build output
+bin/
+obj/
+Build/
+build/
+
+# IDE/editor junk
+.vscode/
+.idea/
+*.user
+*.suo
+*.csproj.user
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+CoQAutoMap_WindowPoc.txt
+
+# Generated automap cache/images
+automap/
+Automap/
+tiles/
+*.png
+
+# Temporary paste/decompiler files
+Pasted text.txt
