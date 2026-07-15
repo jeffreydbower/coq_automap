@@ -41,9 +41,6 @@ namespace CoQAutoMap
         private const string CanvasName = "CoQAutoMap_Canvas";
         private const string LogFileName = "CoQAutoMap.txt";
 
-        private const int VisibleColumns = 30;
-        private const int VisibleRows = 10;
-
         private const float PanStep = 80f;
 
         // Multiplicative zoom feels better than additive zoom.
@@ -58,8 +55,8 @@ namespace CoQAutoMap
 
         private Canvas _canvas;
         private UnityEngine.GameObject _root;
-        private RectTransform _mapContent;
-        private GridLayoutGroup _grid;
+
+
         private UnityEngine.UI.Text _titleText;
         private UnityEngine.UI.Text _layerText;
         private UnityEngine.UI.Text _statusText;
@@ -73,7 +70,6 @@ namespace CoQAutoMap
         private bool _worldMapVisible;
         private RectTransform _worldMapTargetMarker;
 
-        private readonly List<Image> _tiles = new List<Image>();
 
         private bool _isOpen;
         private bool _suppressToggleUntilReleased;
@@ -81,8 +77,7 @@ namespace CoQAutoMap
         private string _previousGameView;
         private NavigationContext _previousNavigationContext;
         private NavigationContext _automapNavigationContext;
-
-        private int _layerZ;        
+      
         private int _panX;
         private int _panY;
         // Absolute Qud Z layer currently displayed.
@@ -1127,11 +1122,6 @@ namespace CoQAutoMap
 
                 ClearLoadedZoneTiles();
 
-                if (_mapContent != null)
-                {
-                    _mapContent.gameObject.SetActive(false);
-                }
-
                 if (_renderedZoneImage != null)
                 {
                     _renderedZoneImage.gameObject.SetActive(false);
@@ -1377,24 +1367,6 @@ namespace CoQAutoMap
             viewportOutline.effectDistance = new Vector2(2f, -2f);
             viewportOutline.effectColor = new Color(0.25f, 0.5f, 0.35f, 1f);
 
-            UnityEngine.GameObject content = new UnityEngine.GameObject("DummyTileGrid");
-            content.transform.SetParent(viewport.transform, false);
-
-            _mapContent = content.AddComponent<RectTransform>();
-            _mapContent.anchorMin = new Vector2(0.5f, 0.5f);
-            _mapContent.anchorMax = new Vector2(0.5f, 0.5f);
-            _mapContent.pivot = new Vector2(0.5f, 0.5f);
-            _mapContent.anchoredPosition = Vector2.zero;
-
-            _grid = content.AddComponent<GridLayoutGroup>();
-            _grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            _grid.constraintCount = VisibleColumns;
-            _grid.spacing = new Vector2(2f, 2f);
-            _grid.childAlignment = TextAnchor.MiddleCenter;
-
-            CreateDummyTiles(content.transform);
-            content.SetActive(false);
-
             UnityEngine.GameObject renderedImageObject = new UnityEngine.GameObject("RenderedZoneImage");
 
             renderedImageObject.transform.SetParent(mapPlaneObject.transform, false);
@@ -1561,28 +1533,6 @@ namespace CoQAutoMap
             return uiText;
         }
 
-        private void CreateDummyTiles(Transform parent)
-        {
-            _tiles.Clear();
-
-            int count = VisibleColumns * VisibleRows;
-
-            for (int i = 0; i < count; i++)
-            {
-                UnityEngine.GameObject tile = new UnityEngine.GameObject("Tile_" + i);
-                tile.transform.SetParent(parent, false);
-
-                Image image = tile.AddComponent<Image>();
-                image.color = Color.black;
-
-                Outline outline = tile.AddComponent<Outline>();
-                outline.effectDistance = new Vector2(1f, -1f);
-                outline.effectColor = new Color(0f, 0f, 0f, 0.65f);
-
-                _tiles.Add(image);
-            }
-        }
-
         private void ApplyMapPlaneTransform()
         {
             if (_mapPlane == null)
@@ -1599,11 +1549,6 @@ namespace CoQAutoMap
             EnsureDisplayZInitialized();
 
             ApplyMapPlaneTransform();
-
-            if (_mapContent != null)
-            {
-                _mapContent.gameObject.SetActive(false);
-            }
 
             if (_layerText != null)
             {
@@ -1637,33 +1582,6 @@ namespace CoQAutoMap
                     " | Layer: " + GetLayerLabel(_displayZ) +
                     " | Source: " + source;
             }
-        }
-
-        private Color GetDummyTileColor(int x, int y, int z)
-        {
-            int hash = x * 73856093 ^ y * 19349663 ^ z * 83492791;
-            hash = Math.Abs(hash);
-
-            float baseR = 0.08f + ((hash & 0xFF) / 255f) * 0.30f;
-            float baseG = 0.12f + (((hash >> 8) & 0xFF) / 255f) * 0.48f;
-            float baseB = 0.08f + (((hash >> 16) & 0xFF) / 255f) * 0.28f;
-
-            if ((x + y + z) % 11 == 0)
-            {
-                return new Color(0.65f, 0.52f, 0.18f, 1f);
-            }
-
-            if ((x * 3 + y * 5 + z) % 17 == 0)
-            {
-                return new Color(0.25f, 0.55f, 0.75f, 1f);
-            }
-
-            if ((x * 7 - y * 2 + z) % 23 == 0)
-            {
-                return new Color(0.55f, 0.20f, 0.20f, 1f);
-            }
-
-            return new Color(baseR, baseG, baseB, 1f);
         }
 
         private static string Safe(string value)
@@ -2095,11 +2013,6 @@ namespace CoQAutoMap
             {
                 _renderedZoneImageRect.sizeDelta = new Vector2(texture.width, texture.height);
                 _renderedZoneImageRect.anchoredPosition = Vector2.zero;
-            }
-
-            if (_mapContent != null)
-            {
-                _mapContent.gameObject.SetActive(false);
             }
         }
 

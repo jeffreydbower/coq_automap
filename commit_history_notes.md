@@ -11,3 +11,7 @@ Renamed "Poc" from all mentiones in code since thisis not a proof of concept any
 - 3: 7/14/26 ~10:35pm
 
 Removed debug and error logging untill errors start occuring.
+
+- 4: 7/14/26 ~10:44pm
+
+Removed code for dummy grid.
