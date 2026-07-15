@@ -292,6 +292,11 @@ namespace CoQAutoMap
             }
         }
 
+        // Unity calls Update once per frame while the controller GameObject exists.
+        // This is the small runtime loop for the automap:
+        // - release temporary input blocks after Ctrl+M/Escape are physically released
+        // - complete any queued zone-capture work
+        // - detect Ctrl+M and route automap controls while the window is open
         private void Update()
         {
             try
@@ -1230,13 +1235,21 @@ namespace CoQAutoMap
             }
         }
 
+        // Builds the Unity overlay UI once and keeps it hidden until the automap opens.
+        // This creates the main automap frame, the stitched-zone map plane, the world map
+        // overlay, status text, and help text. Runtime open/close only toggles visibility.
         private void EnsureUiCreated()
         {
+            // UI is persistent for the lifetime of the controller.
+            // If it already exists, do not rebuild or duplicate Unity objects.
             if (_root != null)
             {
                 return;
             }
 
+            // Top-level Unity canvas.
+            // ScreenSpaceOverlay means this draws directly over the game UI without needing
+            // a camera. High sortingOrder keeps it above normal Qud UI.
             UnityEngine.GameObject canvasObject = new UnityEngine.GameObject(CanvasName);
             canvasObject.transform.SetParent(this.transform, false);
 
@@ -1244,13 +1257,19 @@ namespace CoQAutoMap
             _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             _canvas.sortingOrder = 5000;
 
+            // Scale the UI relative to a 1920x1080 reference resolution.
+            // This keeps the automap roughly proportional across different display sizes.
             CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
 
+            // Required if we later want clickable UI elements. Mostly harmless for now.
             canvasObject.AddComponent<GraphicRaycaster>();
 
+            // Root overlay object.
+            // This fills the whole screen, receives the dim background image, and is the
+            // object OpenWindow/CloseWindow toggle on and off.
             _root = new UnityEngine.GameObject("Root");
             _root.transform.SetParent(canvasObject.transform, false);
 
@@ -1260,14 +1279,20 @@ namespace CoQAutoMap
             rootRect.offsetMin = Vector2.zero;
             rootRect.offsetMax = Vector2.zero;
 
+            // CanvasGroup makes the root behave like a modal overlay.
+            // blocksRaycasts/interactable are mostly future-proofing for mouse UI.
             CanvasGroup rootGroup = _root.AddComponent<CanvasGroup>();
             rootGroup.alpha = 1f;
             rootGroup.interactable = true;
             rootGroup.blocksRaycasts = true;
 
+            // Full-screen dimmer behind the automap frame.
+            // This visually separates the automap from the live game.
             Image dim = _root.AddComponent<Image>();
             dim.color = new Color(0f, 0f, 0f, 0.78f);
 
+            // Main outer frame.
+            // This is the large visible automap window container.
             UnityEngine.GameObject frame = CreatePanel(
                 "Frame",
                 _root.transform,
@@ -1280,10 +1305,13 @@ namespace CoQAutoMap
             frameRect.offsetMin = Vector2.zero;
             frameRect.offsetMax = Vector2.zero;
 
+            // Green outline gives the temporary UI a Qud-ish framed-panel feel.
             Outline frameOutline = frame.AddComponent<Outline>();
             frameOutline.effectDistance = new Vector2(3f, -3f);
             frameOutline.effectColor = new Color(0.45f, 0.75f, 0.55f, 1f);
 
+            // Inner panel.
+            // This is the real content area inside the outer border.
             UnityEngine.GameObject inner = CreatePanel(
                 "Inner",
                 frame.transform,
@@ -1296,6 +1324,8 @@ namespace CoQAutoMap
             innerRect.offsetMin = Vector2.zero;
             innerRect.offsetMax = Vector2.zero;
 
+            // Title text.
+            // Public mod name may change later, but this is the upper-left window title.
             _titleText = CreateText(
                 "Title",
                 inner.transform,
@@ -1311,6 +1341,9 @@ namespace CoQAutoMap
             titleRect.offsetMin = Vector2.zero;
             titleRect.offsetMax = Vector2.zero;
 
+            // Layer indicator.
+            // This is updated when the player changes displayed Z layers.
+            // The initial text is only a placeholder until runtime layer state is set.
             _layerText = CreateText(
                 "LayerIndicator",
                 inner.transform,
@@ -1326,6 +1359,8 @@ namespace CoQAutoMap
             layerRect.offsetMin = Vector2.zero;
             layerRect.offsetMax = Vector2.zero;
 
+            // Main automap viewport.
+            // This is the clipped window through which the stitched zone map is viewed.
             UnityEngine.GameObject viewport = CreatePanel(
                 "MapViewport",
                 inner.transform,
@@ -1338,6 +1373,8 @@ namespace CoQAutoMap
             viewportRect.offsetMin = Vector2.zero;
             viewportRect.offsetMax = Vector2.zero;
 
+            // MapPlane is the panned/scaled object.
+            // Pan and zoom operate on this RectTransform, not on individual zone images.
             UnityEngine.GameObject mapPlaneObject = new UnityEngine.GameObject("MapPlane");
             mapPlaneObject.transform.SetParent(viewport.transform, false);
 
@@ -1349,6 +1386,9 @@ namespace CoQAutoMap
             _mapPlane.sizeDelta = Vector2.zero;
             _mapPlane.localScale = Vector3.one;
 
+            // ZoneTileContainer holds the stitched automap PNG tiles.
+            // Each captured zone image becomes a child RawImage positioned by world coordinate.
+            // Keeping them under one container makes pan/zoom simple.
             UnityEngine.GameObject zoneTileContainerObject = new UnityEngine.GameObject("ZoneTileContainer");
             zoneTileContainerObject.transform.SetParent(mapPlaneObject.transform, false);
 
@@ -1360,13 +1400,20 @@ namespace CoQAutoMap
             _zoneTileContainer.sizeDelta = Vector2.zero;
             _zoneTileContainer.localScale = Vector3.one;
 
+            // Mask clips the map plane to the visible viewport rectangle.
+            // Without this, panned/zoomed map tiles would draw outside the map window.
             Mask mask = viewport.AddComponent<Mask>();
             mask.showMaskGraphic = true;
 
+            // Viewport border.
             Outline viewportOutline = viewport.AddComponent<Outline>();
             viewportOutline.effectDistance = new Vector2(2f, -2f);
             viewportOutline.effectColor = new Color(0.25f, 0.5f, 0.35f, 1f);
 
+            // Legacy single-zone image object.
+            // This was used before stitched multi-zone loading. It is currently hidden,
+            // but keeping it around is harmless until a later cleanup decides whether
+            // the single-zone render path should be removed entirely.
             UnityEngine.GameObject renderedImageObject = new UnityEngine.GameObject("RenderedZoneImage");
 
             renderedImageObject.transform.SetParent(mapPlaneObject.transform, false);
@@ -1388,11 +1435,15 @@ namespace CoQAutoMap
             _renderedZoneImage.raycastTarget = false;
             _renderedZoneImage.texture = null;
 
-            // Keep aspect ratio so the 1280x600 zone image does not stretch.
+            // RawImage.preserveAspect is not available in this Qud/Unity version.
+            // The texture is sized directly instead.
             //_renderedZoneImage.preserveAspect = true;
 
             renderedImageObject.SetActive(false);
 
+            // World map overlay root.
+            // This is a modal panel drawn over the automap when the player presses W.
+            // It is created once here but starts hidden.
             UnityEngine.GameObject worldMapRoot = CreatePanel(
                 "WorldMapOverlay",
                 inner.transform,
@@ -1411,6 +1462,8 @@ namespace CoQAutoMap
             worldMapOutline.effectDistance = new Vector2(2f, -2f);
             worldMapOutline.effectColor = new Color(0.45f, 0.75f, 0.55f, 1f);
 
+            // WorldMapPlane holds the rendered 80x25 world map texture.
+            // Unlike the stitched automap, this is currently shown as a fixed full-map panel.
             UnityEngine.GameObject worldMapPlaneObject = new UnityEngine.GameObject("WorldMapPlane");
             worldMapPlaneObject.transform.SetParent(worldMapRoot.transform, false);
 
@@ -1422,11 +1475,16 @@ namespace CoQAutoMap
             _worldMapPlane.sizeDelta = new Vector2(1280f, 600f);
             _worldMapPlane.localScale = Vector3.one;
 
+            // RawImage that displays the generated world map texture.
+            // The actual texture is created/refreshed by RenderWorldMapOverlay().
             _worldMapImage = worldMapPlaneObject.AddComponent<RawImage>();
             _worldMapImage.color = Color.white;
             _worldMapImage.raycastTarget = false;
             _worldMapImage.texture = null;
 
+            // Exact current-parasang marker.
+            // The world map renderer gives the broad Qud-style highlight/falloff, but this
+            // translucent rectangle makes the exact target parasang readable.
             UnityEngine.GameObject markerObject = new UnityEngine.GameObject("WorldMapTargetMarker");
             markerObject.transform.SetParent(worldMapPlaneObject.transform, false);
 
@@ -1436,7 +1494,7 @@ namespace CoQAutoMap
             _worldMapTargetMarker.pivot = new Vector2(0.5f, 0.5f);
 
             // One world-map parasang is one rendered tile: 16 x 24 pixels.
-            // Slightly oversized so it reads as a marker.
+            // Slightly oversized so it reads as a marker without hiding the tile beneath it.
             _worldMapTargetMarker.sizeDelta = new Vector2(20f, 28f);
             _worldMapTargetMarker.anchoredPosition = Vector2.zero;
 
@@ -1451,6 +1509,8 @@ namespace CoQAutoMap
             markerObject.SetActive(false);
             worldMapRoot.SetActive(false);
 
+            // Status line.
+            // Used for capture/load feedback and lightweight runtime state.
             _statusText = CreateText(
                 "Status",
                 inner.transform,
@@ -1466,6 +1526,8 @@ namespace CoQAutoMap
             statusRect.offsetMin = Vector2.zero;
             statusRect.offsetMax = Vector2.zero;
 
+            // Help line.
+            // This is currently hard-coded. Later config/keybinding support should update this.
             _helpText = CreateText(
                 "Help",
                 inner.transform,
@@ -1481,6 +1543,7 @@ namespace CoQAutoMap
             helpRect.offsetMin = Vector2.zero;
             helpRect.offsetMax = Vector2.zero;
 
+            // Start hidden. OpenWindow() toggles the root on.
             _root.SetActive(false);
         }
 
@@ -1731,6 +1794,12 @@ namespace CoQAutoMap
             }
         }
 
+        // Captures a Qud zone into a PNG tile used by the stitched automap.
+        // The pixel-coloring approach is adapted from the Qud WorldMap Viewer style:
+        // render each cell, read the tile sprite, then map transparent/dark/light sprite
+        // pixels to background/foreground/detail colors.
+        // This keeps the automap visually close to Qud's own tile rendering while letting
+        // us control explored-but-not-visible shading.
         private void CaptureZoneToPngQueued(Zone zone, string savePath)
         {
 
@@ -1914,6 +1983,9 @@ namespace CoQAutoMap
             }
         }
 
+        // Zone capture finishes from a queued UI task because Unity texture work has to
+        // happen on the UI/main thread. This method checks each frame whether the queued
+        // capture is done, then reloads the stitched map if the visible automap requested it.
         private void PollZoneCapture()
         {
             if (!_capturePending)
