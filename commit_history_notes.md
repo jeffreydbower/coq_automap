@@ -3,3 +3,7 @@
 - 1: 7/11/26 ~8pm
 
 Initial Commit of automap prototype code to Github. project directory named coq_automap.
+
+- 2: 7/14/26 ~9:48pm
+
+Renamed "Poc" from all mentiones in code since thisis not a proof of concept anymore.

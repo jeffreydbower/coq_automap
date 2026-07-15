@@ -13,7 +13,7 @@ namespace CoQAutoMap
 
             Registrar.Register(ZoneDeactivatedEvent.ID);
 
-            AutomapWindowPocController.DebugLog(
+            AutomapController.DebugLog(
                 "AutomapZoneCaptureSystem: registered for ZoneDeactivatedEvent."
             );
         }
@@ -26,7 +26,7 @@ namespace CoQAutoMap
 
                 if (zone == null)
                 {
-                    AutomapWindowPocController.DebugLog(
+                    AutomapController.DebugLog(
                         "AutomapZoneCaptureSystem: ZoneDeactivatedEvent had null zone."
                     );
 
@@ -37,7 +37,7 @@ namespace CoQAutoMap
 
                 if (!zoneId.Contains("."))
                 {
-                    AutomapWindowPocController.DebugLog(
+                    AutomapController.DebugLog(
                         "AutomapZoneCaptureSystem: skipped non-local/world zone on deactivate: " +
                         zoneId
                     );
@@ -45,7 +45,7 @@ namespace CoQAutoMap
                     return base.HandleEvent(E);
                 }
 
-                AutomapWindowPocController.DebugLog(
+                AutomapController.DebugLog(
                     "AutomapZoneCaptureSystem: ZoneDeactivatedEvent for " +
                     zoneId +
                     " stale=" +
@@ -56,14 +56,14 @@ namespace CoQAutoMap
                     SafeActiveZoneId()
                 );
 
-                AutomapWindowPocController.QueueDeactivatedZoneCapture(
+                AutomapController.QueueDeactivatedZoneCapture(
                     zone,
                     "ZoneDeactivatedEvent"
                 );
             }
             catch (Exception ex)
             {
-                AutomapWindowPocController.DebugLog(
+                AutomapController.DebugLog(
                     "AutomapZoneCaptureSystem.HandleEvent ZoneDeactivatedEvent EXCEPTION: " +
                     ex
                 );

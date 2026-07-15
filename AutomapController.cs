@@ -21,25 +21,25 @@ namespace CoQAutoMap
 {
     [PlayerMutator]
     [HasCallAfterGameLoaded]
-    public sealed class AutomapWindowPocBootstrap : IPlayerMutator
+    public sealed class AutomapBootstrap : IPlayerMutator
     {
         public void mutate(XRL.World.GameObject player)
         {
-            AutomapWindowPocController.EnsureInstalled("PlayerMutator.mutate");
+            AutomapController.EnsureInstalled("PlayerMutator.mutate");
         }
 
         [CallAfterGameLoaded]
         public static void AfterGameLoaded()
         {
-            AutomapWindowPocController.EnsureInstalled("CallAfterGameLoaded");
+            AutomapController.EnsureInstalled("CallAfterGameLoaded");
         }
     }
 
-    public sealed class AutomapWindowPocController : MonoBehaviour
+    public sealed class AutomapController : MonoBehaviour
     {
-        private const string ControllerName = "CoQAutoMap_WindowPoc_Controller";
-        private const string CanvasName = "CoQAutoMap_WindowPoc_Canvas";
-        private const string LogFileName = "CoQAutoMap_WindowPoc.txt";
+        private const string ControllerName = "CoQAutoMap_Controller";
+        private const string CanvasName = "CoQAutoMap_Canvas";
+        private const string LogFileName = "CoQAutoMap.txt";
 
         private const int VisibleColumns = 30;
         private const int VisibleRows = 10;
@@ -54,7 +54,7 @@ namespace CoQAutoMap
         private const float MinZoom = 0.04f;
         private const float MaxZoom = 1.50f;
 
-        private static AutomapWindowPocController _instance;
+        private static AutomapController _instance;
 
         private Canvas _canvas;
         private UnityEngine.GameObject _root;
@@ -72,9 +72,6 @@ namespace CoQAutoMap
         private Texture2D _worldMapTexture;
         private bool _worldMapVisible;
         private RectTransform _worldMapTargetMarker;
-
-
-
 
         private readonly List<Image> _tiles = new List<Image>();
 
@@ -167,7 +164,7 @@ namespace CoQAutoMap
 
                 if (existing != null)
                 {
-                    _instance = existing.GetComponent<AutomapWindowPocController>();
+                    _instance = existing.GetComponent<AutomapController>();
 
                     if (_instance != null)
                     {
@@ -179,10 +176,10 @@ namespace CoQAutoMap
                 UnityEngine.GameObject controllerObject = new UnityEngine.GameObject(ControllerName);
                 DontDestroyOnLoad(controllerObject);
 
-               _instance = controllerObject.AddComponent<AutomapWindowPocController>();
+               _instance = controllerObject.AddComponent<AutomapController>();
                
 
-                AutomapInputGatePoc.Install();
+                AutomapInputGate.Install();
 
                 try
                 {
@@ -194,8 +191,8 @@ namespace CoQAutoMap
                     Log(source + ": RequireSystem<AutomapZoneCaptureSystem> EXCEPTION: " + ex);
                 }
 
-                Log(source + ": installed Automap NavigationContext POC controller.");
-                Popup.Show("CoQ Auto-Map NavigationContext POC loaded.\n\nPress Ctrl+M to open the Automap window.");
+                Log(source + ": installed Automap NavigationContext controller.");
+                Popup.Show("CoQ Auto-Map NavigationContext loaded.\n\nPress Ctrl+M to open the Automap window.");
             }
             catch (Exception ex)
             {
@@ -238,7 +235,7 @@ namespace CoQAutoMap
 
                 if (Input.GetKeyDown(UnityEngine.KeyCode.Escape))
                 {
-                    AutomapInputGatePoc.BlockUntilEscapeReleased();
+                    AutomapInputGate.BlockUntilEscapeReleased();
                     CloseWindow("Raw Esc");
                     return;
                 }
@@ -315,7 +312,7 @@ namespace CoQAutoMap
         {
             try
             {
-                AutomapInputGatePoc.UpdateReleaseBlocks();
+                AutomapInputGate.UpdateReleaseBlocks();
 
                 PollZoneCapture();
 
@@ -1542,21 +1539,7 @@ namespace CoQAutoMap
             markerOutline.effectColor = new Color(0.9f, 1.0f, 0.35f, 0.45f);
 
             markerObject.SetActive(false);
-
-
-
-
-
-
-
-
-
-
             worldMapRoot.SetActive(false);
-
-
-
-
 
             _statusText = CreateText(
                 "Status",
@@ -2315,7 +2298,7 @@ namespace CoQAutoMap
         
     }
 
-    internal static class AutomapInputGatePoc
+    internal static class AutomapInputGate
     {
         private static bool _installed;
         private static bool _blockUntilEscapeReleased;
@@ -2331,10 +2314,10 @@ namespace CoQAutoMap
 
             try
             {
-                Harmony harmony = new Harmony("CoQAutoMap.ModalInputGatePoc");
+                Harmony harmony = new Harmony("CoQAutoMap.ModalInputGate");
 
                 MethodInfo keyboardPrefix = AccessTools.Method(
-                    typeof(AutomapInputGatePoc),
+                    typeof(AutomapInputGate),
                     nameof(BlockKeyboardGetvk)
                 );
 
@@ -2360,8 +2343,8 @@ namespace CoQAutoMap
                         prefix: new HarmonyMethod(keyboardPrefix)
                     );
 
-                    AutomapWindowPocController.DebugLog(
-                        "AutomapInputGatePoc: patched Keyboard.getvk overload: " + method
+                    AutomapController.DebugLog(
+                        "AutomapInputGate: patched Keyboard.getvk overload: " + method
                     );
                 }
 
@@ -2376,14 +2359,14 @@ namespace CoQAutoMap
                         updateQueue,
                         prefix: new HarmonyMethod(
                             AccessTools.Method(
-                                typeof(AutomapInputGatePoc),
+                                typeof(AutomapInputGate),
                                 nameof(BlockCommandQueueUpdate)
                             )
                         )
                     );
 
-                    AutomapWindowPocController.DebugLog(
-                        "AutomapInputGatePoc: patched ControlManager.UpdateTheCommandQueue."
+                    AutomapController.DebugLog(
+                        "AutomapInputGate: patched ControlManager.UpdateTheCommandQueue."
                     );
                 }
 
@@ -2405,21 +2388,21 @@ namespace CoQAutoMap
                         commandDownValue,
                         prefix: new HarmonyMethod(
                             AccessTools.Method(
-                                typeof(AutomapInputGatePoc),
+                                typeof(AutomapInputGate),
                                 nameof(BlockIsCommandDownValue)
                             )
                         )
                     );
 
-                    AutomapWindowPocController.DebugLog(
-                        "AutomapInputGatePoc: patched ControlManager.isCommandDownValue."
+                    AutomapController.DebugLog(
+                        "AutomapInputGate: patched ControlManager.isCommandDownValue."
                     );
                 }
             }
             catch (Exception ex)
             {
-                AutomapWindowPocController.DebugLog(
-                    "AutomapInputGatePoc.Install EXCEPTION: " + ex
+                AutomapController.DebugLog(
+                    "AutomapInputGate.Install EXCEPTION: " + ex
                 );
 
                 Popup.Show(
@@ -2444,8 +2427,8 @@ namespace CoQAutoMap
             {
             }
 
-            AutomapWindowPocController.DebugLog(
-                "AutomapInputGatePoc: blocking input until Escape is released."
+            AutomapController.DebugLog(
+                "AutomapInputGate: blocking input until Escape is released."
             );
         }
 
@@ -2465,15 +2448,15 @@ namespace CoQAutoMap
                 {
                 }
 
-                AutomapWindowPocController.DebugLog(
-                    "AutomapInputGatePoc: Escape released; input gate release block cleared."
+                AutomapController.DebugLog(
+                    "AutomapInputGate: Escape released; input gate release block cleared."
                 );
             }
         }
 
         private static bool ShouldBlockGameInput()
         {
-            return AutomapWindowPocController.IsOpen || _blockUntilEscapeReleased;
+            return AutomapController.IsOpen || _blockUntilEscapeReleased;
         }
 
         private static bool BlockKeyboardGetvk(ref Keys __result)
