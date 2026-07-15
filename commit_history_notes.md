@@ -7,3 +7,7 @@ Initial Commit of automap prototype code to Github. project directory named coq_
 - 2: 7/14/26 ~9:48pm
 
 Renamed "Poc" from all mentiones in code since thisis not a proof of concept anymore.
+
+- 3: 7/14/26 ~10:35pm
+
+Removed debug and error logging untill errors start occuring.

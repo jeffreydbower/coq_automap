@@ -10,12 +10,7 @@ namespace CoQAutoMap
         public override void Register(XRLGame Game, IEventRegistrar Registrar)
         {
             base.Register(Game, Registrar);
-
             Registrar.Register(ZoneDeactivatedEvent.ID);
-
-            AutomapController.DebugLog(
-                "AutomapZoneCaptureSystem: registered for ZoneDeactivatedEvent."
-            );
         }
 
         public override bool HandleEvent(ZoneDeactivatedEvent E)
@@ -26,47 +21,23 @@ namespace CoQAutoMap
 
                 if (zone == null)
                 {
-                    AutomapController.DebugLog(
-                        "AutomapZoneCaptureSystem: ZoneDeactivatedEvent had null zone."
-                    );
-
                     return base.HandleEvent(E);
                 }
 
-                string zoneId = zone.ZoneID ?? "<null>";
+                string zoneId = zone.ZoneID;
 
-                if (!zoneId.Contains("."))
+                if (string.IsNullOrEmpty(zoneId) || !zoneId.Contains("."))
                 {
-                    AutomapController.DebugLog(
-                        "AutomapZoneCaptureSystem: skipped non-local/world zone on deactivate: " +
-                        zoneId
-                    );
-
                     return base.HandleEvent(E);
                 }
-
-                AutomapController.DebugLog(
-                    "AutomapZoneCaptureSystem: ZoneDeactivatedEvent for " +
-                    zoneId +
-                    " stale=" +
-                    zone.Stale +
-                    " suspended=" +
-                    zone.Suspended +
-                    " activeZone=" +
-                    SafeActiveZoneId()
-                );
 
                 AutomapController.QueueDeactivatedZoneCapture(
                     zone,
                     "ZoneDeactivatedEvent"
                 );
             }
-            catch (Exception ex)
+            catch
             {
-                AutomapController.DebugLog(
-                    "AutomapZoneCaptureSystem.HandleEvent ZoneDeactivatedEvent EXCEPTION: " +
-                    ex
-                );
             }
 
             return base.HandleEvent(E);

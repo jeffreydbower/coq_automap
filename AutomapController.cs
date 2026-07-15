@@ -116,11 +116,6 @@ namespace CoQAutoMap
             {
                 if (_instance == null)
                 {
-                    Log(
-                        source +
-                        ": QueueDeactivatedZoneCapture skipped; controller instance is null. zone=" +
-                        (zone != null ? zone.ZoneID : "<null>")
-                    );
 
                     return;
                 }
@@ -131,15 +126,16 @@ namespace CoQAutoMap
                     loadWhenComplete: false
                 );
             }
-            catch (Exception ex)
+            catch
             {
-                Log(source + ": QueueDeactivatedZoneCapture EXCEPTION: " + ex);
             }
         }
 
         public static void DebugLog(string message)
         {
-            Log(message);
+            // Debug logging disabled for normal use.
+            // Uncomment while investigating input/capture/system issues.
+            // Log(message);
         }
 
         public static bool IsOpen
@@ -156,7 +152,6 @@ namespace CoQAutoMap
             {
                 if (_instance != null)
                 {
-                    Log(source + ": controller already installed.");
                     return;
                 }
 
@@ -168,7 +163,6 @@ namespace CoQAutoMap
 
                     if (_instance != null)
                     {
-                        Log(source + ": found existing controller.");
                         return;
                     }
                 }
@@ -184,19 +178,15 @@ namespace CoQAutoMap
                 try
                 {
                     The.Game?.RequireSystem<AutomapZoneCaptureSystem>();
-                    Log(source + ": required AutomapZoneCaptureSystem.");
                 }
-                catch (Exception ex)
+                catch
                 {
-                    Log(source + ": RequireSystem<AutomapZoneCaptureSystem> EXCEPTION: " + ex);
                 }
 
-                Log(source + ": installed Automap NavigationContext controller.");
-                Popup.Show("CoQ Auto-Map NavigationContext loaded.\n\nPress Ctrl+M to open the Automap window.");
+                //Popup.Show("CoQ Auto-Map NavigationContext loaded.\n\nPress Ctrl+M to open the Automap window.");
             }
             catch (Exception ex)
             {
-                Log(source + ": EXCEPTION installing controller: " + ex);
                 Popup.Show("CoQ Auto-Map install exception:\n\n" + ex.GetType().Name + "\n" + ex.Message);
             }
         }
@@ -302,9 +292,8 @@ namespace CoQAutoMap
                 }
 
             }
-            catch (Exception ex)
+            catch
             {
-                Log("HandleRawAutomapControls: EXCEPTION: " + ex);
             }
         }
 
@@ -335,7 +324,6 @@ namespace CoQAutoMap
                     }
 
                     _suppressToggleUntilReleased = false;
-                    Log("Update: released Ctrl+M; toggle active again.");
                 }
 
                 // Keep Ctrl+M as a raw Unity bootstrap hotkey for now.
@@ -360,9 +348,8 @@ namespace CoQAutoMap
                     HandleRawAutomapControls();
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Log("Update: EXCEPTION: " + ex);
             }
         }
 
@@ -372,13 +359,11 @@ namespace CoQAutoMap
 
             if (_root == null)
             {
-                Log(source + ": failed to open; root was null.");
                 return;
             }
 
             if (_isOpen)
             {
-                Log(source + ": OpenWindow skipped; already open.");
                 return;
             }
 
@@ -397,9 +382,8 @@ namespace CoQAutoMap
                     _previousNavigationContext = NavigationController.instance.activeContext;
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Log(source + ": exception while capturing previous context/view: " + ex);
             }
 
             _root.SetActive(true);
@@ -421,24 +405,12 @@ namespace CoQAutoMap
             RefreshMapTiles(source);
 
             StartCaptureCurrentZoneImage(source);
-
-            Log(
-                source +
-                ": Automap window opened. previousGameView=" +
-                Safe(_previousGameView) +
-                " previousNav=" +
-                SafeContext(_previousNavigationContext) +
-                " currentNav=" +
-                SafeContext(NavigationController.instance != null ? NavigationController.instance.activeContext : null) +
-                "."
-            );
         }
 
         private void CloseWindow(string source)
         {
             if (!_isOpen)
             {
-                Log(source + ": CloseWindow skipped; already closed.");
                 return;
             }
 
@@ -456,9 +428,8 @@ namespace CoQAutoMap
                 ControlManager.ConsumeAllInput();
                 ControlManager.ResetInput(false, false);
             }
-            catch (Exception ex)
+            catch
             {
-                Log(source + ": exception while consuming/resetting input: " + ex);
             }
 
             try
@@ -468,21 +439,9 @@ namespace CoQAutoMap
                     GameManager.EnsureGameView(_previousGameView);
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Log(source + ": exception while restoring game view: " + ex);
             }
-
-            Log(
-                source +
-                ": Automap window closed. restoredGameView=" +
-                Safe(_previousGameView) +
-                " currentView=" +
-                Safe(GameManager.Instance != null ? GameManager.Instance.CurrentGameView : null) +
-                " currentNav=" +
-                SafeContext(NavigationController.instance != null ? NavigationController.instance.activeContext : null) +
-                "."
-            );
 
             _automapNavigationContext = null;
             _previousNavigationContext = null;
@@ -524,12 +483,9 @@ namespace CoQAutoMap
                 RegisterCommand("CmdAccept", ResetView);
 
                 _automapNavigationContext.ActivateAndEnable();
-
-                Log(source + ": activated Automap NavigationContext.");
             }
             catch (Exception ex)
             {
-                Log(source + ": EXCEPTION creating/activating Automap NavigationContext: " + ex);
                 Popup.Show("CoQ Auto-Map NavigationContext exception:\n\n" + ex.GetType().Name + "\n" + ex.Message);
             }
         }
@@ -553,11 +509,9 @@ namespace CoQAutoMap
                         try
                         {
                             action();
-                            Log("NavigationContext handled command: " + commandId);
                         }
-                        catch (Exception ex)
+                        catch
                         {
-                            Log("NavigationContext command exception for " + commandId + ": " + ex);
                         }
                     }
                 );
@@ -575,19 +529,16 @@ namespace CoQAutoMap
                 if (_previousNavigationContext != null)
                 {
                     _previousNavigationContext.ActivateAndEnable();
-                    Log(source + ": restored previous NavigationContext: " + SafeContext(_previousNavigationContext));
                     return;
                 }
 
                 if (active == _automapNavigationContext && NavigationController.instance != null)
                 {
                     NavigationController.instance.activeContext = null;
-                    Log(source + ": cleared Automap NavigationContext; no previous context.");
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Log(source + ": EXCEPTION restoring previous NavigationContext: " + ex);
             }
         }
 
@@ -1018,7 +969,6 @@ namespace CoQAutoMap
             catch (Exception ex)
             {
                 SetCaptureStatus(source + ": RenderWorldMapOverlay exception: " + ex.GetType().Name);
-                Log(source + ": RenderWorldMapOverlay EXCEPTION: " + ex);
             }
         }
 
@@ -1283,22 +1233,10 @@ namespace CoQAutoMap
                     skippedCount
                 );
 
-                Log(
-                    source +
-                    ": loaded " +
-                    loadedCount +
-                    " automap tile(s), displayZ=" +
-                    displayZ +
-                    ", current=" +
-                    currentCoord.ZoneId +
-                    ", dir=" +
-                    automapDir
-                );
             }
             catch (Exception ex)
             {
                 SetCaptureStatus(source + ": LoadCapturedZoneTilesForCurrentLayer exception: " + ex.GetType().Name);
-                Log(source + ": LoadCapturedZoneTilesForCurrentLayer EXCEPTION: " + ex);
             }
         }
 
@@ -1572,8 +1510,6 @@ namespace CoQAutoMap
             helpRect.offsetMax = Vector2.zero;
 
             _root.SetActive(false);
-
-            Log("EnsureUiCreated: created independent Automap overlay UI.");
         }
 
         private UnityEngine.GameObject CreatePanel(string name, Transform parent, Color color)
@@ -1701,27 +1637,6 @@ namespace CoQAutoMap
                     " | Layer: " + GetLayerLabel(_displayZ) +
                     " | Source: " + source;
             }
-
-            Log(
-                source +
-                ": refreshed automap view. pan=(" +
-                _panX +
-                "," +
-                _panY +
-                "), offset=(" +
-                _mapPlaneOffset.x.ToString("0.00") +
-                "," +
-                _mapPlaneOffset.y.ToString("0.00") +
-                "), displayZ=" +
-                _displayZ +
-                ", zoom=" +
-                _zoom.ToString("0.00") +
-                ", view=" +
-                currentView +
-                ", nav=" +
-                currentContext +
-                "."
-            );
         }
 
         private Color GetDummyTileColor(int x, int y, int z)
@@ -1817,7 +1732,6 @@ namespace CoQAutoMap
                 _captureError = ex.ToString();
 
                 SetCaptureStatus(source + ": capture start exception: " + ex.GetType().Name + " " + ex.Message);
-                Log(source + ": StartCaptureCurrentZoneImage EXCEPTION: " + ex);
             }
         }
 
@@ -1827,11 +1741,6 @@ namespace CoQAutoMap
             {
                 if (_capturePending)
                 {
-                    Log(
-                        source +
-                        ": capture already pending; skipping capture request for " +
-                        (zone != null ? zone.ZoneID : "<null>")
-                    );
 
                     return;
                 }
@@ -1842,10 +1751,6 @@ namespace CoQAutoMap
                     {
                         SetCaptureStatus(source + ": no zone supplied.");
                     }
-                    else
-                    {
-                        Log(source + ": no zone supplied.");
-                    }
 
                     return;
                 }
@@ -1854,13 +1759,11 @@ namespace CoQAutoMap
 
                 if (!zoneId.Contains("."))
                 {
-                    Log(source + ": skipped non-local/world zone capture: " + zoneId);
                     return;
                 }
 
                 if (zone.Stale)
                 {
-                    Log(source + ": skipped stale zone capture: " + zoneId);
                     return;
                 }
 
@@ -1894,14 +1797,8 @@ namespace CoQAutoMap
                 {
                     SetCaptureStatus(message);
                 }
-                else
-                {
-                    Log(source + ": " + message);
-                }
 
                 CaptureZoneToPngQueued(zone, savePath);
-
-                Log(source + ": queued zone capture for " + zoneId + " to " + savePath);
             }
             catch (Exception ex)
             {
@@ -1913,20 +1810,16 @@ namespace CoQAutoMap
                 {
                     SetCaptureStatus(source + ": capture start exception: " + ex.GetType().Name + " " + ex.Message);
                 }
-
-                Log(source + ": StartCaptureZoneImage EXCEPTION: " + ex);
             }
         }
 
         private void CaptureZoneToPngQueued(Zone zone, string savePath)
         {
-            DateTime start = DateTime.Now;
 
             try
             {
                 int zoneWidth = zone.Width;
                 int zoneHeight = zone.Height;
-                string zoneId = zone.ZoneID;
 
                 SnapshotRenderable[,] cells = new SnapshotRenderable[zoneWidth, zoneHeight];
                 bool[,] exploredMap = new bool[zoneWidth, zoneHeight];
@@ -2080,28 +1973,10 @@ namespace CoQAutoMap
 
                         Directory.CreateDirectory(Path.GetDirectoryName(savePath));
                         File.WriteAllBytes(savePath, pngBytes);
-
-                        TimeSpan elapsed = DateTime.Now - start;
-
-                        Log(
-                            "CaptureZoneToPngQueued: wrote " +
-                            zoneId +
-                            " to " +
-                            savePath +
-                            " size=" +
-                            imageWidth +
-                            "x" +
-                            imageHeight +
-                            " elapsed=" +
-                            elapsed.TotalSeconds.ToString("0.000") +
-                            "s"
-                        );
                     }
                     catch (Exception ex)
                     {
-                        _captureError = ex.ToString();
-
-                        Log("CaptureZoneToPngQueued UI task EXCEPTION: " + ex);
+                        _captureError = ex.GetType().Name + ": " + ex.Message;
                     }
                     finally
                     {
@@ -2116,10 +1991,8 @@ namespace CoQAutoMap
             }
             catch (Exception ex)
             {
-                _captureError = ex.ToString();
+                _captureError = ex.GetType().Name + ": " + ex.Message;
                 _captureComplete = true;
-
-                Log("CaptureZoneToPngQueued setup EXCEPTION: " + ex);
             }
         }
 
@@ -2151,10 +2024,6 @@ namespace CoQAutoMap
                 {
                     SetCaptureStatus(message);
                 }
-                else
-                {
-                    Log(message);
-                }
 
                 return;
             }
@@ -2165,13 +2034,6 @@ namespace CoQAutoMap
 
                 if (!_captureLoadWhenComplete)
                 {
-                    Log(
-                        "Auto-captured zone image to disk: " +
-                        _capturePath +
-                        " elapsed=" +
-                        elapsed.TotalSeconds.ToString("0.000") +
-                        "s"
-                    );
 
                     return;
                 }
@@ -2191,7 +2053,6 @@ namespace CoQAutoMap
             catch (Exception ex)
             {
                 SetCaptureStatus("Load rendered zone exception: " + ex.GetType().Name + " " + ex.Message);
-                Log("PollZoneCapture load EXCEPTION: " + ex);
             }
         }
 
@@ -2240,15 +2101,6 @@ namespace CoQAutoMap
             {
                 _mapContent.gameObject.SetActive(false);
             }
-
-            Log(
-                "LoadRenderedZoneImageFromDisk: loaded " +
-                path +
-                " texture=" +
-                texture.width +
-                "x" +
-                texture.height
-            );
         }
 
         private string GetAutomapTileDirectory()
@@ -2260,9 +2112,8 @@ namespace CoQAutoMap
                     return The.Game.GetCacheDirectory(Path.Combine("Automap", "tiles"));
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Log("GetAutomapTileDirectory: The.Game.GetCacheDirectory failed: " + ex);
             }
 
             return DataManager.SavePath(Path.Combine("Automap", "tiles"));
@@ -2292,7 +2143,7 @@ namespace CoQAutoMap
                 _statusText.text = message;
             }
 
-            Log(message);
+            //Log(message);
         }
 
         
