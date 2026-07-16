@@ -24,3 +24,7 @@ Added comments above important functions and within EnsureUICreated() to documen
 - 6: 7/15/26 ~9:26pm
 
 Moved world map code from EnsureUICreated to its own function 
+
+- 7: 7/15/26 ~9:46pm
+
+Moved UI helper functions out of EnsureUICreated

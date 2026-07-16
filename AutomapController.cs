@@ -1324,11 +1324,25 @@ namespace CoQAutoMap
             innerRect.offsetMin = Vector2.zero;
             innerRect.offsetMax = Vector2.zero;
 
+            CreateHeaderUi(inner.transform);       
+
+            CreateAutomapViewportUi(inner.transform);
+           
+            CreateWorldMapOverlayUi(inner.transform);
+
+            CreateStatusAndHelpUi(inner.transform);
+
+            // Start hidden. OpenWindow() toggles the root on.
+            _root.SetActive(false);
+        }
+
+        private void CreateHeaderUi(Transform parent)
+        {
             // Title text.
             // Public mod name may change later, but this is the upper-left window title.
             _titleText = CreateText(
                 "Title",
-                inner.transform,
+                parent,
                 "CoQ Auto-Map",
                 34,
                 TextAnchor.MiddleLeft,
@@ -1346,7 +1360,7 @@ namespace CoQAutoMap
             // The initial text is only a placeholder until runtime layer state is set.
             _layerText = CreateText(
                 "LayerIndicator",
-                inner.transform,
+                parent,
                 "Layer: Surface / Z0",
                 24,
                 TextAnchor.MiddleRight,
@@ -1358,12 +1372,52 @@ namespace CoQAutoMap
             layerRect.anchorMax = new Vector2(0.975f, 0.985f);
             layerRect.offsetMin = Vector2.zero;
             layerRect.offsetMax = Vector2.zero;
+        }
 
+        private void CreateStatusAndHelpUi(Transform parent)
+        {
+            // Status line.
+            // Used for capture/load feedback and lightweight runtime state.
+            _statusText = CreateText(
+                "Status",
+                parent,
+                "",
+                20,
+                TextAnchor.MiddleLeft,
+                new Color(0.9f, 0.9f, 0.78f, 1f)
+            );
+
+            RectTransform statusRect = _statusText.GetComponent<RectTransform>();
+            statusRect.anchorMin = new Vector2(0.025f, 0.08f);
+            statusRect.anchorMax = new Vector2(0.975f, 0.145f);
+            statusRect.offsetMin = Vector2.zero;
+            statusRect.offsetMax = Vector2.zero;
+
+            // Help line.
+            // This is currently hard-coded. Later config/keybinding support should update this.
+            _helpText = CreateText(
+                "Help",
+                parent,
+                "[Ctrl+M] toggle   [Esc] close   [W] world map   [Arrows/Numpad] pan   [PgUp/PgDn] layer   [+/-] zoom   [Home] reset   [R] render",
+                18,
+                TextAnchor.MiddleCenter,
+                new Color(0.6f, 0.95f, 1f, 1f)
+            );
+
+            RectTransform helpRect = _helpText.GetComponent<RectTransform>();
+            helpRect.anchorMin = new Vector2(0.025f, 0.015f);
+            helpRect.anchorMax = new Vector2(0.975f, 0.075f);
+            helpRect.offsetMin = Vector2.zero;
+            helpRect.offsetMax = Vector2.zero;
+        }
+
+        private void CreateAutomapViewportUi(Transform parent)
+        {
             // Main automap viewport.
             // This is the clipped window through which the stitched zone map is viewed.
             UnityEngine.GameObject viewport = CreatePanel(
                 "MapViewport",
-                inner.transform,
+                parent,
                 new Color(0.02f, 0.025f, 0.02f, 1f)
             );
 
@@ -1415,7 +1469,6 @@ namespace CoQAutoMap
             // but keeping it around is harmless until a later cleanup decides whether
             // the single-zone render path should be removed entirely.
             UnityEngine.GameObject renderedImageObject = new UnityEngine.GameObject("RenderedZoneImage");
-
             renderedImageObject.transform.SetParent(mapPlaneObject.transform, false);
 
             RectTransform renderedImageRect = renderedImageObject.AddComponent<RectTransform>();
@@ -1440,45 +1493,6 @@ namespace CoQAutoMap
             //_renderedZoneImage.preserveAspect = true;
 
             renderedImageObject.SetActive(false);
-
-            CreateWorldMapOverlayUi(inner.transform);
-
-            // Status line.
-            // Used for capture/load feedback and lightweight runtime state.
-            _statusText = CreateText(
-                "Status",
-                inner.transform,
-                "",
-                20,
-                TextAnchor.MiddleLeft,
-                new Color(0.9f, 0.9f, 0.78f, 1f)
-            );
-
-            RectTransform statusRect = _statusText.GetComponent<RectTransform>();
-            statusRect.anchorMin = new Vector2(0.025f, 0.08f);
-            statusRect.anchorMax = new Vector2(0.975f, 0.145f);
-            statusRect.offsetMin = Vector2.zero;
-            statusRect.offsetMax = Vector2.zero;
-
-            // Help line.
-            // This is currently hard-coded. Later config/keybinding support should update this.
-            _helpText = CreateText(
-                "Help",
-                inner.transform,
-                "[Ctrl+M] toggle   [Esc] close   [W] world map   [Arrows/Numpad] pan   [PgUp/PgDn] layer   [+/-] zoom   [Home] reset   [R] render",
-                18,
-                TextAnchor.MiddleCenter,
-                new Color(0.6f, 0.95f, 1f, 1f)
-            );
-
-            RectTransform helpRect = _helpText.GetComponent<RectTransform>();
-            helpRect.anchorMin = new Vector2(0.025f, 0.015f);
-            helpRect.anchorMax = new Vector2(0.975f, 0.075f);
-            helpRect.offsetMin = Vector2.zero;
-            helpRect.offsetMax = Vector2.zero;
-
-            // Start hidden. OpenWindow() toggles the root on.
-            _root.SetActive(false);
         }
 
         private void CreateWorldMapOverlayUi(Transform parent)
