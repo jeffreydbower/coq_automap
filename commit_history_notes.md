@@ -20,3 +20,7 @@ Removed code for dummy grid.
 - 5: 7/14/26 ~10:58pm
 
 Added comments above important functions and within EnsureUICreated() to document the UI elements.
+
+- 6: 7/15/26 ~9:26pm
+
+Moved world map code from EnsureUICreated to its own function 

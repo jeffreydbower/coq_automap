@@ -1441,12 +1441,54 @@ namespace CoQAutoMap
 
             renderedImageObject.SetActive(false);
 
+            CreateWorldMapOverlayUi(inner.transform);
+
+            // Status line.
+            // Used for capture/load feedback and lightweight runtime state.
+            _statusText = CreateText(
+                "Status",
+                inner.transform,
+                "",
+                20,
+                TextAnchor.MiddleLeft,
+                new Color(0.9f, 0.9f, 0.78f, 1f)
+            );
+
+            RectTransform statusRect = _statusText.GetComponent<RectTransform>();
+            statusRect.anchorMin = new Vector2(0.025f, 0.08f);
+            statusRect.anchorMax = new Vector2(0.975f, 0.145f);
+            statusRect.offsetMin = Vector2.zero;
+            statusRect.offsetMax = Vector2.zero;
+
+            // Help line.
+            // This is currently hard-coded. Later config/keybinding support should update this.
+            _helpText = CreateText(
+                "Help",
+                inner.transform,
+                "[Ctrl+M] toggle   [Esc] close   [W] world map   [Arrows/Numpad] pan   [PgUp/PgDn] layer   [+/-] zoom   [Home] reset   [R] render",
+                18,
+                TextAnchor.MiddleCenter,
+                new Color(0.6f, 0.95f, 1f, 1f)
+            );
+
+            RectTransform helpRect = _helpText.GetComponent<RectTransform>();
+            helpRect.anchorMin = new Vector2(0.025f, 0.015f);
+            helpRect.anchorMax = new Vector2(0.975f, 0.075f);
+            helpRect.offsetMin = Vector2.zero;
+            helpRect.offsetMax = Vector2.zero;
+
+            // Start hidden. OpenWindow() toggles the root on.
+            _root.SetActive(false);
+        }
+
+        private void CreateWorldMapOverlayUi(Transform parent)
+        {
             // World map overlay root.
             // This is a modal panel drawn over the automap when the player presses W.
             // It is created once here but starts hidden.
             UnityEngine.GameObject worldMapRoot = CreatePanel(
                 "WorldMapOverlay",
-                inner.transform,
+                parent,
                 new Color(0.0f, 0.0f, 0.0f, 0.92f)
             );
 
@@ -1508,43 +1550,6 @@ namespace CoQAutoMap
 
             markerObject.SetActive(false);
             worldMapRoot.SetActive(false);
-
-            // Status line.
-            // Used for capture/load feedback and lightweight runtime state.
-            _statusText = CreateText(
-                "Status",
-                inner.transform,
-                "",
-                20,
-                TextAnchor.MiddleLeft,
-                new Color(0.9f, 0.9f, 0.78f, 1f)
-            );
-
-            RectTransform statusRect = _statusText.GetComponent<RectTransform>();
-            statusRect.anchorMin = new Vector2(0.025f, 0.08f);
-            statusRect.anchorMax = new Vector2(0.975f, 0.145f);
-            statusRect.offsetMin = Vector2.zero;
-            statusRect.offsetMax = Vector2.zero;
-
-            // Help line.
-            // This is currently hard-coded. Later config/keybinding support should update this.
-            _helpText = CreateText(
-                "Help",
-                inner.transform,
-                "[Ctrl+M] toggle   [Esc] close   [W] world map   [Arrows/Numpad] pan   [PgUp/PgDn] layer   [+/-] zoom   [Home] reset   [R] render",
-                18,
-                TextAnchor.MiddleCenter,
-                new Color(0.6f, 0.95f, 1f, 1f)
-            );
-
-            RectTransform helpRect = _helpText.GetComponent<RectTransform>();
-            helpRect.anchorMin = new Vector2(0.025f, 0.015f);
-            helpRect.anchorMax = new Vector2(0.975f, 0.075f);
-            helpRect.offsetMin = Vector2.zero;
-            helpRect.offsetMax = Vector2.zero;
-
-            // Start hidden. OpenWindow() toggles the root on.
-            _root.SetActive(false);
         }
 
         private UnityEngine.GameObject CreatePanel(string name, Transform parent, Color color)
