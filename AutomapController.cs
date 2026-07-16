@@ -56,12 +56,10 @@ namespace CoQAutoMap
         private Canvas _canvas;
         private UnityEngine.GameObject _root;
 
-
         private UnityEngine.UI.Text _titleText;
         private UnityEngine.UI.Text _layerText;
         private UnityEngine.UI.Text _statusText;
         private UnityEngine.UI.Text _helpText;
-
 
         private UnityEngine.GameObject _worldMapRoot;
         private RectTransform _worldMapPlane;
@@ -209,12 +207,6 @@ namespace CoQAutoMap
 
                     // While the world map overlay is visible, do not let pan/zoom/layer
                     // controls affect the automap underneath.
-                    return;
-                }
-
-                if (Input.GetKeyDown(UnityEngine.KeyCode.R))
-                {
-                    StartCaptureCurrentZoneImage("Raw R re-render");
                     return;
                 }
 
@@ -1136,6 +1128,7 @@ namespace CoQAutoMap
 
                 int loadedCount = 0;
                 int skippedCount = 0;
+                
 
                 for (int i = 0; i < pngFiles.Length; i++)
                 {
@@ -1143,6 +1136,19 @@ namespace CoQAutoMap
                     string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
 
                     AutomapZoneCoord tileCoord;
+
+                    // Tile filenames are saved from Qud zone IDs:
+                    //   World.ParasangX.ParasangY.ZoneX.ZoneY.Z.png
+                    //
+                    // A parasang contains a 3x3 block of local zones, so AutomapZoneCoord converts
+                    // parasang/local coordinates into global zone coordinates:
+                    //
+                    //   GlobalZoneX = ParasangX * 3 + ZoneX
+                    //   GlobalZoneY = ParasangY * 3 + ZoneY
+                    //
+                    // The stitched automap is centered on the player's current zone. Each loaded
+                    // tile is placed by comparing its global zone coordinate to the current zone's
+                    // global coordinate, then multiplying by the rendered PNG size.
 
                     if (!TryParseAutomapZoneId(fileNameWithoutExtension, out tileCoord))
                     {
@@ -1197,6 +1203,9 @@ namespace CoQAutoMap
                     int relativeZoneX = tileCoord.GlobalZoneX - currentCoord.GlobalZoneX;
                     int relativeZoneY = tileCoord.GlobalZoneY - currentCoord.GlobalZoneY;
 
+
+                    // Unity UI Y coordinates increase upward, while Qud/world map Y increases
+                    // downward/southward, so relativeZoneY is negated when placing the tile.
                     tileRect.anchoredPosition = new Vector2(
                         relativeZoneX * texture.width,
                         -relativeZoneY * texture.height
@@ -1405,7 +1414,7 @@ namespace CoQAutoMap
             _helpText = CreateText(
                 "Help",
                 parent,
-                "[Ctrl+M] toggle   [Esc] close   [W] world map   [Arrows/Numpad] pan   [PgUp/PgDn] layer   [+/-] zoom   [Home] reset   [R] render",
+                "[Ctrl+M] toggle   [Esc] close   [W] world map   [Arrows/Numpad] pan   [PgUp/PgDn] layer   [+/-] zoom   [Home] reset",
                 18,
                 TextAnchor.MiddleCenter,
                 new Color(0.6f, 0.95f, 1f, 1f)
@@ -1742,6 +1751,11 @@ namespace CoQAutoMap
             }
         }
 
+        // Starts an asynchronous-ish zone capture.
+        // The zone's cell/render data is read here, but Unity texture creation and PNG
+        // encoding are queued onto Qud's UI thread by CaptureZoneToPngQueued(...).
+        // PollZoneCapture() later notices when that queued work is done and refreshes
+        // the visible stitched map if needed.
         private void StartCaptureZoneImage(Zone zone, string source, bool loadWhenComplete)
         {
             try
@@ -1826,6 +1840,8 @@ namespace CoQAutoMap
         // pixels to background/foreground/detail colors.
         // This keeps the automap visually close to Qud's own tile rendering while letting
         // us control explored-but-not-visible shading.
+        //Qud World-Map Viewer https://kernelmethod.org/notes/qud_worldmap/
+        //https://github.com/kernelmethod/Qud-WorldMap-Viewer
         private void CaptureZoneToPngQueued(Zone zone, string savePath)
         {
 
@@ -1849,6 +1865,7 @@ namespace CoQAutoMap
                         LightLevel lightLevel = cell.GetLight();
 
                         exploredMap[x, y] = explored;
+                        //custom cell rendering path that removes explored shading
                         RenderEvent rendered = AutomapCellRenderer.RenderCellForAutomap(
                             cell,
                             visible,
