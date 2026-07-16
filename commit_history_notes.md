@@ -28,3 +28,7 @@ Moved world map code from EnsureUICreated to its own function
 - 7: 7/15/26 ~9:46pm
 
 Moved UI helper functions out of EnsureUICreated
+
+- 8: 7/15/26 ~9:55pm
+
+Extract automap UI shell setup

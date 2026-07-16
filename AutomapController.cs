@@ -1247,6 +1247,22 @@ namespace CoQAutoMap
                 return;
             }
 
+            Transform inner = CreateAutomapShellUi();
+    
+            CreateHeaderUi(inner.transform);       
+
+            CreateAutomapViewportUi(inner.transform);
+           
+            CreateWorldMapOverlayUi(inner.transform);
+
+            CreateStatusAndHelpUi(inner.transform);
+
+            // Start hidden. OpenWindow() toggles the root on.
+            _root.SetActive(false);
+        }
+
+        private Transform CreateAutomapShellUi()
+        {
             // Top-level Unity canvas.
             // ScreenSpaceOverlay means this draws directly over the game UI without needing
             // a camera. High sortingOrder keeps it above normal Qud UI.
@@ -1324,16 +1340,7 @@ namespace CoQAutoMap
             innerRect.offsetMin = Vector2.zero;
             innerRect.offsetMax = Vector2.zero;
 
-            CreateHeaderUi(inner.transform);       
-
-            CreateAutomapViewportUi(inner.transform);
-           
-            CreateWorldMapOverlayUi(inner.transform);
-
-            CreateStatusAndHelpUi(inner.transform);
-
-            // Start hidden. OpenWindow() toggles the root on.
-            _root.SetActive(false);
+            return inner.transform;
         }
 
         private void CreateHeaderUi(Transform parent)
