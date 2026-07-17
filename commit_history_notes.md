@@ -66,6 +66,10 @@ Split automap world map overlay  AutomapWorldMapOverlay.cs
 
 Split automap input gate  AutomapInputgate.cs
 
-- 16: 7/17/26 ~9:58am
+- 16: 7/17/26 ~10:05am
 
 Split automap bootstrap  AutomapBootstrap.cs
+
+- 17: 7/17/26 ~10:19am
+
+Split automap window lifecycle control  AutomapWindowLifecycle.cs
