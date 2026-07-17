@@ -541,7 +541,7 @@ namespace CoQAutoMap
                 return false;
             }
 
-            return TryParseAutomapZoneId(currentZone.ZoneID, out coord);
+            return AutomapZoneCoord.TryParse(currentZone.ZoneID, out coord);
         }
 
         private int GetCurrentZoneZOrSurface()
@@ -990,82 +990,9 @@ namespace CoQAutoMap
             _worldMapTargetMarker.gameObject.SetActive(true);
         }
 
-        private struct AutomapZoneCoord
-        {
-            public string World;
-            public int ParasangX;
-            public int ParasangY;
-            public int ZoneX;
-            public int ZoneY;
-            public int Z;
+       
 
-            public int GlobalZoneX
-            {
-                get { return ParasangX * 3 + ZoneX; }
-            }
-
-            public int GlobalZoneY
-            {
-                get { return ParasangY * 3 + ZoneY; }
-            }
-
-            public string ZoneId
-            {
-                get
-                {
-                    return World + "." +
-                        ParasangX + "." +
-                        ParasangY + "." +
-                        ZoneX + "." +
-                        ZoneY + "." +
-                        Z;
-                }
-            }
-        }
-
-        private static bool TryParseAutomapZoneId(string zoneId, out AutomapZoneCoord coord)
-        {
-            coord = default(AutomapZoneCoord);
-
-            if (string.IsNullOrEmpty(zoneId))
-            {
-                return false;
-            }
-
-            string[] parts = zoneId.Split('.');
-
-            if (parts.Length != 6)
-            {
-                return false;
-            }
-
-            int parasangX;
-            int parasangY;
-            int zoneX;
-            int zoneY;
-            int z;
-
-            if (!int.TryParse(parts[1], out parasangX) ||
-                !int.TryParse(parts[2], out parasangY) ||
-                !int.TryParse(parts[3], out zoneX) ||
-                !int.TryParse(parts[4], out zoneY) ||
-                !int.TryParse(parts[5], out z))
-            {
-                return false;
-            }
-
-            coord = new AutomapZoneCoord
-            {
-                World = parts[0],
-                ParasangX = parasangX,
-                ParasangY = parasangY,
-                ZoneX = zoneX,
-                ZoneY = zoneY,
-                Z = z
-            };
-
-            return true;
-        }
+        
 
         private void LoadCapturedZoneTilesForCurrentLayer(string source)
         {
@@ -1089,7 +1016,7 @@ namespace CoQAutoMap
 
                 AutomapZoneCoord currentCoord;
 
-                if (!TryParseAutomapZoneId(currentZone.ZoneID, out currentCoord))
+                if (!AutomapZoneCoord.TryParse(currentZone.ZoneID, out currentCoord))
                 {
                     SetCaptureStatus(source + ": could not parse current zone ID: " + Safe(currentZone.ZoneID));
                     return;
@@ -1141,7 +1068,7 @@ namespace CoQAutoMap
                     // tile is placed by comparing its global zone coordinate to the current zone's
                     // global coordinate, then multiplying by the rendered PNG size.
 
-                    if (!TryParseAutomapZoneId(fileNameWithoutExtension, out tileCoord))
+                    if (!AutomapZoneCoord.TryParse(fileNameWithoutExtension, out tileCoord))
                     {
                         skippedCount++;
                         continue;

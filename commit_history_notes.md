@@ -45,3 +45,7 @@ removed legacy render path
 - 10: 7/16/26 ~10:25pm
 
 Moved UI code to AutomapUiBuilder.cs
+
+- 11: 7/17/26 ~8:43am
+
+Moved Zone Cordinate helpers to  AutomapZoneCoord.cs
