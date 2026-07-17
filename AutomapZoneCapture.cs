@@ -26,6 +26,9 @@ namespace CoQAutoMap
 
                 string zoneId = zone.ZoneID;
 
+                // Only local coordinate zones can be captured as automap tiles.
+                // Normal tile IDs look like:
+                //   JoppaWorld.11.22.1.1.14
                 if (string.IsNullOrEmpty(zoneId) || !zoneId.Contains("."))
                 {
                     return base.HandleEvent(E);
@@ -36,23 +39,17 @@ namespace CoQAutoMap
                     "ZoneDeactivatedEvent"
                 );
             }
-            catch
+            catch (Exception ex)
             {
+                AutomapController.DebugLog(
+                    "AutomapZoneCaptureSystem.HandleEvent exception: " +
+                    ex.GetType().Name +
+                    ": " +
+                    ex.Message
+                );
             }
 
             return base.HandleEvent(E);
-        }
-
-        private static string SafeActiveZoneId()
-        {
-            try
-            {
-                return The.ZoneManager?.ActiveZone?.ZoneID ?? "<null>";
-            }
-            catch
-            {
-                return "<active zone lookup failed>";
-            }
         }
     }
 }
