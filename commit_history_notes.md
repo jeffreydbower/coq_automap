@@ -61,3 +61,7 @@ Moved Zone tile rendering to file code  AutomapTileRenderer.cs
 - 14: 7/17/26 ~9:49am
 
 Split automap world map overlay  AutomapWorldMapOverlay.cs
+
+- 15: 7/17/26 ~9:58am
+
+Split automap input gate  AutomapInputgate.cs
