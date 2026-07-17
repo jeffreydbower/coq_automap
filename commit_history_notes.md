@@ -53,3 +53,11 @@ Moved Zone Cordinate helpers to  AutomapZoneCoord.cs
 - 12: 7/17/26 ~9:00am
 
 Moved Zone tile display to  AutomapTileDisplay.cs
+
+- 13: 7/17/26 ~9:34am
+
+Moved Zone tile rendering to file code  AutomapTileRenderer.cs
+
+- 14: 7/17/26 ~9:49am
+
+Split automap world map overlay  AutomapWorldMapOverlay.cs
