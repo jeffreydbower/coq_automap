@@ -73,3 +73,7 @@ Split automap bootstrap  AutomapBootstrap.cs
 - 17: 7/17/26 ~10:19am
 
 Split automap window lifecycle control  AutomapWindowLifecycle.cs
+
+- 18: 7/17/26 ~10:29am
+
+Split automap view controls  AutomapViewControls.cs
