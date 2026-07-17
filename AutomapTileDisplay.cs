@@ -1,14 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
 using XRL;
-using XRL.UI;
 using XRL.World;
-
-using NavigationContext = XRL.UI.Framework.NavigationContext;
-using NavigationController = XRL.UI.Framework.NavigationController;
 
 namespace CoQAutoMap
 {
@@ -232,13 +227,6 @@ namespace CoQAutoMap
                 _layerText.text = "Layer: " + GetLayerLabel(_displayZ);
             }
 
-            string currentContext = "<no NavigationController>";
-
-            if (NavigationController.instance != null)
-            {
-                currentContext = SafeContext(NavigationController.instance.activeContext);
-            }
-
             if (_statusText != null)
             {
                 _statusText.text =
@@ -258,23 +246,6 @@ namespace CoQAutoMap
         private static string Safe(string value)
         {
             return value ?? "<null>";
-        }
-
-        private static string SafeContext(NavigationContext context)
-        {
-            if (context == null)
-            {
-                return "<null>";
-            }
-
-            try
-            {
-                return context.ToString();
-            }
-            catch
-            {
-                return "<context ToString failed>";
-            }
         }
 
         private void SetCaptureStatus(string message)

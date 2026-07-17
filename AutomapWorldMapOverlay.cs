@@ -74,28 +74,6 @@ namespace CoQAutoMap
             return dx * dx + dy * dy;
         }
 
-        private void CenterWorldMapOn(int x, int y)
-        {
-            if (_worldMapPlane == null || _worldMapRoot == null)
-            {
-                return;
-            }
-
-            RectTransform rootRect = _worldMapRoot.transform as RectTransform;
-
-            if (rootRect == null)
-            {
-                return;
-            }
-
-            Vector2 size = rootRect.rect.size;
-
-            _worldMapPlane.anchoredPosition = new Vector2(
-                -((x * 32f + 16f) - size.x / 2f),
-                (y * 48f + 24f) - size.y / 2f
-            );
-        }
-
         private void RenderWorldMapOverlay(string source)
         {
             try
@@ -225,7 +203,6 @@ namespace CoQAutoMap
                 _worldMapTexture.SetPixels(pixels);
                 _worldMapTexture.Apply(updateMipmaps: false);
 
-                //CenterWorldMapOn(playerLocation.X, playerLocation.Y);
                 _worldMapPlane.anchoredPosition = Vector2.zero;
                 _worldMapPlane.localScale = Vector3.one;
 

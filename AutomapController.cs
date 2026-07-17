@@ -1,21 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-//using ConsoleLib.Console;
 using UnityEngine;
 using UnityEngine.UI;
 using XRL;
 using XRL.UI;
 using XRL.World;
-//using System.Reflection;
-//using HarmonyLib;
-//using Genkit;
-//using Kobold;
-//using XRL.World.Capabilities;
 
 using NavigationContext = XRL.UI.Framework.NavigationContext;
-using NavigationController = XRL.UI.Framework.NavigationController;
-using FrameworkEvent = XRL.UI.Framework.Event;
 
 namespace CoQAutoMap
 {
@@ -23,7 +14,6 @@ namespace CoQAutoMap
     {
         private const string ControllerName = "CoQAutoMap_Controller";
         private const string CanvasName = "CoQAutoMap_Canvas";
-        private const string LogFileName = "CoQAutoMap.txt";
 
         private const float PanStep = 80f;
 
@@ -85,30 +75,37 @@ namespace CoQAutoMap
 
         public static void QueueDeactivatedZoneCapture(Zone zone, string source)
         {
+            if (_instance == null)
+            {
+                return;
+            }
+
             try
             {
-                if (_instance == null)
-                {
-
-                    return;
-                }
-
                 _instance.StartCaptureZoneImage(
                     zone,
                     source + " auto-capture",
                     loadWhenComplete: false
                 );
             }
-            catch
+            catch (Exception ex)
             {
+                if (_instance._isOpen)
+                {
+                    _instance.SetCaptureStatus(
+                        source +
+                        ": auto-capture failed: " +
+                        ex.GetType().Name +
+                        ": " +
+                        ex.Message
+                    );
+                }
             }
         }
 
         public static void DebugLog(string message)
         {
             // Debug logging disabled for normal use.
-            // Uncomment while investigating input/capture/system issues.
-            // Log(message);
         }
 
         public static bool IsOpen
@@ -152,8 +149,14 @@ namespace CoQAutoMap
                 {
                     The.Game?.RequireSystem<AutomapZoneCaptureSystem>();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Popup.Show(
+                        "CoQ Auto-Map zone capture system install exception:\n\n" +
+                        ex.GetType().Name +
+                        "\n" +
+                        ex.Message
+                    );
                 }
 
                 //Popup.Show("CoQ Auto-Map NavigationContext loaded.\n\nPress Ctrl+M to open the Automap window.");
@@ -221,27 +224,17 @@ namespace CoQAutoMap
                     HandleRawAutomapControls();
                 }
             }
-            catch
+            catch (Exception ex)
             {
-            }
-        }
-
-        private static void Log(string message)
-        {
-            try
-            {
-                string path = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
-                    LogFileName
-                );
-
-                File.AppendAllText(
-                    path,
-                    DateTime.UtcNow.ToString("u") + " | " + message + "\n"
-                );
-            }
-            catch
-            {
+                if (_isOpen)
+                {
+                    SetCaptureStatus(
+                        "Automap update failed: " +
+                        ex.GetType().Name +
+                        ": " +
+                        ex.Message
+                    );
+                }
             }
         }
     }
