@@ -33,7 +33,11 @@ Moved UI helper functions out of EnsureUICreated
 
 Extract automap UI shell setup
 
-:- 9: 7/16/26 ~7:52
+- 9: 7/16/26 ~7:52pm
 
 removed re-rended function (R key)
 Added comments
+
+- 10: 7/16/26 ~8:30pm
+
+removed legacy render path

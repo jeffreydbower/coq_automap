@@ -85,15 +85,11 @@ namespace CoQAutoMap
 
         private Vector2 _mapPlaneOffset = Vector2.zero;
 
-        private RawImage _renderedZoneImage;
-        private RectTransform _renderedZoneImageRect;
         private RectTransform _mapPlane;
 
         private RectTransform _zoneTileContainer;
         private readonly List<UnityEngine.GameObject> _loadedZoneTileObjects = new List<UnityEngine.GameObject>();
         private readonly List<Texture2D> _loadedZoneTileTextures = new List<Texture2D>();
-
-        private Texture2D _loadedZoneTexture;
 
         private bool _capturePending;
         private bool _captureComplete;
@@ -1119,11 +1115,6 @@ namespace CoQAutoMap
 
                 ClearLoadedZoneTiles();
 
-                if (_renderedZoneImage != null)
-                {
-                    _renderedZoneImage.gameObject.SetActive(false);
-                }
-
                 string[] pngFiles = Directory.GetFiles(automapDir, "*.png");
 
                 int loadedCount = 0;
@@ -1258,13 +1249,13 @@ namespace CoQAutoMap
 
             Transform inner = CreateAutomapShellUi();
     
-            CreateHeaderUi(inner.transform);       
+            CreateHeaderUi(inner);       
 
-            CreateAutomapViewportUi(inner.transform);
+            CreateAutomapViewportUi(inner);
            
-            CreateWorldMapOverlayUi(inner.transform);
+            CreateWorldMapOverlayUi(inner);
 
-            CreateStatusAndHelpUi(inner.transform);
+            CreateStatusAndHelpUi(inner);
 
             // Start hidden. OpenWindow() toggles the root on.
             _root.SetActive(false);
@@ -1479,36 +1470,6 @@ namespace CoQAutoMap
             Outline viewportOutline = viewport.AddComponent<Outline>();
             viewportOutline.effectDistance = new Vector2(2f, -2f);
             viewportOutline.effectColor = new Color(0.25f, 0.5f, 0.35f, 1f);
-
-            // Legacy single-zone image object.
-            // This was used before stitched multi-zone loading. It is currently hidden,
-            // but keeping it around is harmless until a later cleanup decides whether
-            // the single-zone render path should be removed entirely.
-            UnityEngine.GameObject renderedImageObject = new UnityEngine.GameObject("RenderedZoneImage");
-            renderedImageObject.transform.SetParent(mapPlaneObject.transform, false);
-
-            RectTransform renderedImageRect = renderedImageObject.AddComponent<RectTransform>();
-
-            _renderedZoneImageRect = renderedImageRect;
-
-            _renderedZoneImageRect.anchorMin = new Vector2(0.5f, 0.5f);
-            _renderedZoneImageRect.anchorMax = new Vector2(0.5f, 0.5f);
-            _renderedZoneImageRect.pivot = new Vector2(0.5f, 0.5f);
-            _renderedZoneImageRect.anchoredPosition = Vector2.zero;
-
-            // Default size for one full Qud zone image: 80x25 cells * 16x24 pixels.
-            _renderedZoneImageRect.sizeDelta = new Vector2(1280f, 600f);
-
-            _renderedZoneImage = renderedImageObject.AddComponent<RawImage>();
-            _renderedZoneImage.color = Color.white;
-            _renderedZoneImage.raycastTarget = false;
-            _renderedZoneImage.texture = null;
-
-            // RawImage.preserveAspect is not available in this Qud/Unity version.
-            // The texture is sized directly instead.
-            //_renderedZoneImage.preserveAspect = true;
-
-            renderedImageObject.SetActive(false);
         }
 
         private void CreateWorldMapOverlayUi(Transform parent)
@@ -2086,48 +2047,6 @@ namespace CoQAutoMap
             catch (Exception ex)
             {
                 SetCaptureStatus("Load rendered zone exception: " + ex.GetType().Name + " " + ex.Message);
-            }
-        }
-
-        private void LoadRenderedZoneImageFromDisk(string path)
-        {
-            byte[] bytes = File.ReadAllBytes(path);
-
-            Texture2D texture = new Texture2D(
-                2,
-                2,
-                TextureFormat.ARGB32,
-                mipChain: false
-            );
-
-            //texture.filterMode = FilterMode.Point;
-            texture.filterMode = UnityEngine.FilterMode.Bilinear;
-            
-
-            if (!ImageConversion.LoadImage(texture, bytes))
-            {
-                UnityEngine.Object.Destroy(texture);
-                throw new Exception("ImageConversion.LoadImage returned false.");
-            }
-
-            if (_loadedZoneTexture != null)
-            {
-                UnityEngine.Object.Destroy(_loadedZoneTexture);
-                _loadedZoneTexture = null;
-            }
-
-            _loadedZoneTexture = texture;
-
-            if (_renderedZoneImage != null)
-            {
-                _renderedZoneImage.texture = _loadedZoneTexture;
-                _renderedZoneImage.gameObject.SetActive(true);
-            }
-
-            if (_renderedZoneImageRect != null)
-            {
-                _renderedZoneImageRect.sizeDelta = new Vector2(texture.width, texture.height);
-                _renderedZoneImageRect.anchoredPosition = Vector2.zero;
             }
         }
 
