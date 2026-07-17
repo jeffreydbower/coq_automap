@@ -9,9 +9,9 @@ using XRL.UI;
 using XRL.World;
 //using System.Reflection;
 //using HarmonyLib;
-using Genkit;
+//using Genkit;
 //using Kobold;
-using XRL.World.Capabilities;
+//using XRL.World.Capabilities;
 
 using NavigationContext = XRL.UI.Framework.NavigationContext;
 using NavigationController = XRL.UI.Framework.NavigationController;
@@ -19,22 +19,6 @@ using FrameworkEvent = XRL.UI.Framework.Event;
 
 namespace CoQAutoMap
 {
-    [PlayerMutator]
-    [HasCallAfterGameLoaded]
-    public sealed class AutomapBootstrap : IPlayerMutator
-    {
-        public void mutate(XRL.World.GameObject player)
-        {
-            AutomapController.EnsureInstalled("PlayerMutator.mutate");
-        }
-
-        [CallAfterGameLoaded]
-        public static void AfterGameLoaded()
-        {
-            AutomapController.EnsureInstalled("CallAfterGameLoaded");
-        }
-    }
-
     public sealed partial class AutomapController : MonoBehaviour
     {
         private const string ControllerName = "CoQAutoMap_Controller";
