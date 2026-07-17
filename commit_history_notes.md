@@ -41,3 +41,7 @@ Added comments
 - 10: 7/16/26 ~8:30pm
 
 removed legacy render path
+
+- 10: 7/16/26 ~10:25pm
+
+Moved UI code to AutomapUiBuilder.cs
