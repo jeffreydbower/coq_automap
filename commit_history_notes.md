@@ -49,3 +49,7 @@ Moved UI code to AutomapUiBuilder.cs
 - 11: 7/17/26 ~8:43am
 
 Moved Zone Cordinate helpers to  AutomapZoneCoord.cs
+
+- 12: 7/17/26 ~9:00am
+
+Moved Zone tile display to  AutomapTileDisplay.cs
