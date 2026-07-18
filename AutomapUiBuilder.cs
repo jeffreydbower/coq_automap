@@ -77,7 +77,7 @@ namespace CoQAutoMap
             ControlManager.ConsumeAllInput();
             ControlManager.ResetInput(false, false);
 
-            _displayZ = GetCurrentZoneZOrSurface();
+            CenterViewOnPlayer();
 
             RefreshMapTiles(source);
 
@@ -1509,6 +1509,22 @@ namespace CoQAutoMap
             _zoom = newZoom;
 
             RefreshMapTiles(source);
+        }
+
+        private void CenterViewOnPlayer()
+        {
+            _panX = 0;
+            _panY = 0;
+            _mapPlaneOffset = Vector2.zero;
+            _isDraggingMap = false;
+            _displayZ = GetCurrentZoneZOrSurface();
+
+            ApplyMapPlaneTransform();
+
+            if (_layerText != null)
+            {
+                _layerText.text = GetFormattedLayerName(_displayZ);
+            }
         }
 
         private void ResetView()
