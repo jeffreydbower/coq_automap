@@ -86,3 +86,6 @@ Consolodated multiple files.
 
 - 21: 7/18/26 ~12:28pm
 First UI pass. Commit before flair is added.
+
+- 22: 7/18/26 ~12:28pm
+UI Release Candidate done.

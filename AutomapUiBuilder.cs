@@ -390,37 +390,169 @@ namespace CoQAutoMap
 
     private void CreateHeaderUi(Transform parent)
     {
-        // Title text.
-        // Public mod name may change later, but this is the upper-left window title.
+        float headerY = 0.945f;
+        float tickTop = 0.958f;
+        float tickBottom = 0.932f;
+
+        // --------------------------
+        // Left side: short stub, two ticks, long rail
+        // Pattern: -| |----------
+        // --------------------------
+
+        CreateHeaderLine(
+            "HeaderLeftStub",
+            parent,
+            new Vector2(0.024f, headerY),
+            new Vector2(0.032f, headerY),
+            new Vector2(0f, -1f),
+            new Vector2(0f, 1f)
+        );
+
+        CreateHeaderLine(
+            "HeaderLeftOuterTick",
+            parent,
+            new Vector2(0.036f, tickBottom),
+            new Vector2(0.036f, tickTop),
+            new Vector2(-1f, 0f),
+            new Vector2(1f, 0f)
+        );
+
+        CreateHeaderLine(
+            "HeaderLeftInnerTick",
+            parent,
+            new Vector2(0.046f, tickBottom),
+            new Vector2(0.046f, tickTop),
+            new Vector2(-1f, 0f),
+            new Vector2(1f, 0f)
+        );
+
+        CreateHeaderLine(
+            "HeaderLeftRail",
+            parent,
+            new Vector2(0.053f, headerY),
+            new Vector2(0.462f, headerY),
+            new Vector2(0f, -1f),
+            new Vector2(0f, 1f)
+        );
+
+        // --------------------------
+        // Center title: close brackets around Atlas
+        // --------------------------
+
+        CreateHeaderLine(
+            "HeaderTitleLeftTick",
+            parent,
+            new Vector2(0.468f, tickBottom),
+            new Vector2(0.468f, tickTop),
+            new Vector2(-1f, 0f),
+            new Vector2(1f, 0f)
+        );
+
+        CreateHeaderLine(
+            "HeaderTitleRightTick",
+            parent,
+            new Vector2(0.532f, tickBottom),
+            new Vector2(0.532f, tickTop),
+            new Vector2(-1f, 0f),
+            new Vector2(1f, 0f)
+        );
+
         _titleText = CreateText(
             "Title",
             parent,
             "Atlas",
             34,
-            TextAnchor.MiddleLeft,
+            TextAnchor.MiddleCenter,
             UiColor("#40a4b9") // c dark cyan / Qud title blue candidate
         );
 
         RectTransform titleRect = _titleText.GetComponent<RectTransform>();
-        titleRect.anchorMin = new Vector2(0.035f, 0.90f);
-        titleRect.anchorMax = new Vector2(0.55f, 0.985f);
+        titleRect.anchorMin = new Vector2(0.468f, 0.900f);
+        titleRect.anchorMax = new Vector2(0.532f, 0.985f);
         titleRect.offsetMin = Vector2.zero;
         titleRect.offsetMax = Vector2.zero;
 
-       _layerText = CreateText(
+        // --------------------------
+        // Right side: rail into layer bracket
+        // --------------------------
+
+        CreateHeaderLine(
+            "HeaderRightRail",
+            parent,
+            new Vector2(0.538f, headerY),
+            new Vector2(0.808f, headerY),
+            new Vector2(0f, -1f),
+            new Vector2(0f, 1f)
+        );
+
+        // Layer bracket. Wider than Surface needs, but tight enough for Subterranean N.
+        CreateHeaderLine(
+            "HeaderLayerLeftTick",
+            parent,
+            new Vector2(0.812f, tickBottom),
+            new Vector2(0.812f, tickTop),
+            new Vector2(-1f, 0f),
+            new Vector2(1f, 0f)
+        );
+
+        CreateHeaderLine(
+            "HeaderLayerRightTick",
+            parent,
+            new Vector2(0.965f, tickBottom),
+            new Vector2(0.965f, tickTop),
+            new Vector2(-1f, 0f),
+            new Vector2(1f, 0f)
+        );
+
+        CreateHeaderLine(
+            "HeaderLayerTail",
+            parent,
+            new Vector2(0.969f, headerY),
+            new Vector2(0.977f, headerY),
+            new Vector2(0f, -1f),
+            new Vector2(0f, 1f)
+        );
+
+        _layerText = CreateText(
             "LayerValue",
             parent,
             GetFormattedLayerName(10),
-            28,
-            TextAnchor.MiddleRight,
+            26,
+            TextAnchor.MiddleCenter,
             UiColor("#b1c9c3") // y grey
         );
 
         RectTransform layerValueRect = _layerText.GetComponent<RectTransform>();
-        layerValueRect.anchorMin = new Vector2(0.55f, 0.90f);
+        layerValueRect.anchorMin = new Vector2(0.812f, 0.900f);
         layerValueRect.anchorMax = new Vector2(0.965f, 0.985f);
         layerValueRect.offsetMin = Vector2.zero;
         layerValueRect.offsetMax = Vector2.zero;
+    }
+
+   
+   
+
+    private void CreateHeaderLine(
+        string name,
+        Transform parent,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        Vector2 offsetMin,
+        Vector2 offsetMax
+    )
+    {
+        UnityEngine.GameObject lineObject = new UnityEngine.GameObject(name);
+        lineObject.transform.SetParent(parent, false);
+
+        RectTransform rect = lineObject.AddComponent<RectTransform>();
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.offsetMin = offsetMin;
+        rect.offsetMax = offsetMax;
+
+        Image image = lineObject.AddComponent<Image>();
+        image.color = UiColor("#b1c9c3"); // y grey
+        image.raycastTarget = false;
     }
 
     private void CreateStatusAndHelpUi(Transform parent)
