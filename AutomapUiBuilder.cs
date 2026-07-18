@@ -1,11 +1,285 @@
 using UnityEngine;
 using UnityEngine.UI;
+using System;
+using System.Collections.Generic;
+using XRL;
+using XRL.UI;
+using XRL.World;
+using ConsoleLib.Console;
+using XRL.World.Capabilities;
+using Genkit;
+using Kobold;
+
+using NavigationContext = XRL.UI.Framework.NavigationContext;
+using NavigationController = XRL.UI.Framework.NavigationController;
+using FrameworkEvent = XRL.UI.Framework.Event;
 
 namespace CoQAutoMap
 {
     public sealed partial class AutomapController
     {
-        
+
+    //#####################################################    
+    //Open/close/navigation context:
+    //OpenWindow, CloseWindow, RegisterCommand, RestorePreviousNavigationContext
+    //#####################################################
+
+    private string _previousGameView;
+    private NavigationContext _previousNavigationContext;
+    private NavigationContext _automapNavigationContext;
+    
+    private void OpenWindow(string source)
+    {
+        try
+        {
+            EnsureUiCreated();
+
+            if (_root == null)
+            {
+                Popup.Show("CoQ Auto-Map failed to create its UI root.");
+                return;
+            }
+
+            if (_isOpen)
+            {
+                return;
+            }
+
+            _previousGameView = null;
+            _previousNavigationContext = null;
+
+            try
+            {
+                if (GameManager.Instance != null)
+                {
+                    _previousGameView = GameManager.Instance.CurrentGameView;
+                }
+
+                if (NavigationController.instance != null)
+                {
+                    _previousNavigationContext = NavigationController.instance.activeContext;
+                }
+            }
+            catch
+            {
+            }
+
+            _root.SetActive(true);
+
+            if (_canvas != null)
+            {
+                _canvas.sortingOrder = 5000;
+                _canvas.enabled = true;
+            }
+
+            _isOpen = true;
+
+            CreateAndActivateAutomapNavigationContext(source);
+            ControlManager.ConsumeAllInput();
+            ControlManager.ResetInput(false, false);
+
+            _displayZ = GetCurrentZoneZOrSurface();
+
+            RefreshMapTiles(source);
+
+            StartCaptureCurrentZoneImage(source);
+        }
+        catch (Exception ex)
+        {
+            Popup.Show(
+                "CoQ Auto-Map open-window exception:\n\n" +
+                ex.GetType().Name +
+                "\n" +
+                ex.Message
+            );
+
+            _isOpen = false;
+
+            if (_root != null)
+            {
+                _root.SetActive(false);
+            }
+        }
+    }
+
+    private void CloseWindow(string source)
+    {
+        if (!_isOpen)
+        {
+            return;
+        }
+
+        _isOpen = false;
+
+        if (_root != null)
+        {
+            _root.SetActive(false);
+        }
+
+        RestorePreviousNavigationContext(source);
+
+        try
+        {
+            ControlManager.ConsumeAllInput();
+            ControlManager.ResetInput(false, false);
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            if (GameManager.Instance != null && _previousGameView != null)
+            {
+                GameManager.EnsureGameView(_previousGameView);
+            }
+        }
+        catch
+        {
+        }
+
+        _automapNavigationContext = null;
+        _previousNavigationContext = null;
+        _previousGameView = null;
+    }
+
+    private void CreateAndActivateAutomapNavigationContext(string source)
+    {
+        try
+        {
+            _automapNavigationContext = new NavigationContext("CoQ Auto-Map");
+
+            _automapNavigationContext.commandHandlers = new Dictionary<string, Action>();
+
+            RegisterCommand("Cancel", () => CloseWindow("NavigationContext: Cancel"));
+            RegisterCommand("CmdCancel", () => CloseWindow("NavigationContext: CmdCancel"));
+
+            RegisterCommand("Navigate Up", PanNorth);
+            RegisterCommand("Navigate Down", PanSouth);
+            RegisterCommand("Navigate Left", PanWest);
+            RegisterCommand("Navigate Right", PanEast);
+
+            RegisterCommand("CmdMoveN", PanNorth);
+            RegisterCommand("CmdMoveS", PanSouth);
+            RegisterCommand("CmdMoveW", PanWest);
+            RegisterCommand("CmdMoveE", PanEast);
+
+            RegisterCommand("Page Up", LayerUp);
+            RegisterCommand("Page Down", LayerDown);
+            RegisterCommand("CmdPageUp", LayerUp);
+            RegisterCommand("CmdPageDown", LayerDown);
+
+            RegisterCommand("ZoomIn", ZoomIn);
+            RegisterCommand("ZoomOut", ZoomOut);
+            RegisterCommand("CmdZoomIn", ZoomIn);
+            RegisterCommand("CmdZoomOut", ZoomOut);
+
+            RegisterCommand("Accept", ResetView);
+            RegisterCommand("CmdAccept", ResetView);
+
+            _automapNavigationContext.ActivateAndEnable();
+        }
+        catch (Exception ex)
+        {
+            Popup.Show(
+                "CoQ Auto-Map NavigationContext exception:\n\n" +
+                ex.GetType().Name +
+                "\n" +
+                ex.Message
+            );
+        }
+    }
+
+    private void RegisterCommand(string commandId, Action action)
+    {
+        if (_automapNavigationContext == null)
+        {
+            return;
+        }
+
+        if (_automapNavigationContext.commandHandlers == null)
+        {
+            _automapNavigationContext.commandHandlers = new Dictionary<string, Action>();
+        }
+
+        _automapNavigationContext.commandHandlers[commandId] =
+            FrameworkEvent.Helpers.Handle(
+                () =>
+                {
+                    try
+                    {
+                        action();
+                    }
+                    catch (Exception ex)
+                    {
+                        SetCaptureStatus(
+                            "Automap command failed: " +
+                            commandId +
+                            " / " +
+                            ex.GetType().Name +
+                            ": " +
+                            ex.Message
+                        );
+                    }
+                }
+            );
+    }
+
+    private void RestorePreviousNavigationContext(string source)
+    {
+        try
+        {
+            NavigationContext active =
+                NavigationController.instance != null
+                    ? NavigationController.instance.activeContext
+                    : null;
+
+            if (_previousNavigationContext != null)
+            {
+                _previousNavigationContext.ActivateAndEnable();
+                return;
+            }
+
+            if (active == _automapNavigationContext && NavigationController.instance != null)
+            {
+                NavigationController.instance.activeContext = null;
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    //Check is still used
+    private void OnDestroy()
+    {
+        try
+        {
+            if (_isOpen)
+            {
+                CloseWindow("OnDestroy");
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    //#####################################################    
+    //Unity UI creation:
+    //EnsureUiCreated and Create*Ui helpers
+    //#####################################################
+
+    private const string CanvasName = "CoQAutoMap_Canvas";
+    private Canvas _canvas;
+    private UnityEngine.GameObject _root;
+    private UnityEngine.UI.Text _titleText;
+    private UnityEngine.UI.Text _layerText;
+    private UnityEngine.UI.Text _statusText;
+    private UnityEngine.UI.Text _helpText;
+    private RectTransform _mapPlane;
+    private RectTransform _zoneTileContainer;
+
     // Builds the Unity overlay UI once and keeps it hidden until the automap opens.
     // This creates the main automap frame, the stitched-zone map plane, the world map
     // overlay, status text, and help text. Runtime open/close only toggles visibility.
@@ -360,5 +634,545 @@ namespace CoQAutoMap
 
             return uiText;
         }
+
+        //#####################################################    
+        //World-map overlay:
+        //ToggleWorldMapOverlay, RenderWorldMapOverlay, marker positioning
+        //#####################################################
+
+        private UnityEngine.GameObject _worldMapRoot;
+        private RectTransform _worldMapPlane;
+        private RawImage _worldMapImage;
+        private Texture2D _worldMapTexture;
+        private bool _worldMapVisible;
+        private RectTransform _worldMapTargetMarker;
+        
+         private void ToggleWorldMapOverlay()
+        {
+            EnsureUiCreated();
+
+            _worldMapVisible = !_worldMapVisible;
+
+            if (_worldMapRoot != null)
+            {
+                _worldMapRoot.SetActive(_worldMapVisible);
+            }
+
+            if (_worldMapVisible)
+            {
+                RenderWorldMapOverlay("ToggleWorldMapOverlay");
+            }
+            else
+            {
+                RefreshMapTiles("ToggleWorldMapOverlay off");
+            }
+        }
+
+        private bool TryGetCurrentWorldMapLocation(out Location2D location)
+        {
+            location = null;
+
+            AutomapZoneCoord coord;
+
+            if (!TryGetCurrentZoneCoord(out coord))
+            {
+                return false;
+            }
+
+            location = Location2D.Get(coord.ParasangX, coord.ParasangY);
+            return true;
+        }
+
+        private float GetWorldMapHighlightDistanceSquared(
+            Location2D highlight,
+            int x,
+            int y,
+            int px,
+            int py,
+            int tileWidth,
+            int tileHeight
+        )
+        {
+            if (highlight == null)
+            {
+                return float.MaxValue;
+            }
+
+            float highlightX = highlight.X * tileWidth + tileWidth / 2f;
+            float highlightY = highlight.Y * tileHeight + tileHeight / 4f;
+
+            int pixelX = x * tileWidth + px;
+            int pixelY = y * (tileHeight + 1) - py;
+
+            float dx = highlightX - pixelX;
+            float dy = highlightY - pixelY;
+
+            return dx * dx + dy * dy;
+        }
+
+        private void RenderWorldMapOverlay(string source)
+        {
+            try
+            {
+                EnsureUiCreated();
+
+                if (_worldMapImage == null || _worldMapPlane == null)
+                {
+                    SetCaptureStatus(source + ": world map UI was not created.");
+                    return;
+                }
+
+                Location2D playerLocation;
+
+                if (!TryGetCurrentWorldMapLocation(out playerLocation))
+                {
+                    SetCaptureStatus(source + ": could not get current world map location.");
+                    return;
+                }
+
+                int width = 1280;
+                int height = 600;
+                int tileWidth = 16;
+                int tileHeight = 24;
+
+                if (_worldMapTexture == null)
+                {
+                    _worldMapTexture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                    _worldMapTexture.filterMode = UnityEngine.FilterMode.Bilinear;
+                    _worldMapTexture.wrapMode = TextureWrapMode.Clamp;
+
+                    _worldMapPlane.sizeDelta = new Vector2(width, height);
+                }
+
+                _worldMapImage.texture = _worldMapTexture;
+                _worldMapImage.color = Color.white;
+                _worldMapImage.gameObject.SetActive(true);
+
+                Zone zone = The.Game.ZoneManager.GetZone("JoppaWorld");
+
+                if (zone == null)
+                {
+                    SetCaptureStatus(source + ": JoppaWorld zone was null.");
+                    return;
+                }
+
+                UnityEngine.Color baseColor =
+                    ConsoleLib.Console.ColorUtility.FromWebColor("041312");
+
+                UnityEngine.Color highlightColor =
+                    ConsoleLib.Console.ColorUtility.ColorMap['K'];
+
+                UnityEngine.Color[] pixels = _worldMapTexture.GetPixels();
+
+                for (int i = 0; i < pixels.Length; i++)
+                {
+                    pixels[i] = baseColor;
+                }
+
+                using (RenderEvent E = RenderEvent.Pool.Get())
+                {
+                    for (int x = 0; x < 80; x++)
+                    {
+                        for (int y = 0; y < 25; y++)
+                        {
+                            zone.GetCell(x, y).Render(E);
+
+                            Sprite sprite = SpriteManager.GetUnitySprite(E.GetSpriteName());
+
+                            if (sprite == null || sprite.texture == null)
+                            {
+                                continue;
+                            }
+
+                            UnityEngine.Color foregroundColor = E.GetForegroundColor();
+                            UnityEngine.Color detailColor = E.GetDetailColor();
+
+                            for (int px = 0; px < tileWidth; px++)
+                            {
+                                for (int py = 0; py < tileHeight; py++)
+                                {
+                                    UnityEngine.Color spritePixel =
+                                        sprite.texture.GetPixel(px, py);
+
+                                    UnityEngine.Color pixelColor = baseColor;
+
+                                    float distanceSquared = GetWorldMapHighlightDistanceSquared(
+                                        playerLocation,
+                                        x,
+                                        y,
+                                        px,
+                                        py,
+                                        tileWidth,
+                                        tileHeight
+                                    );
+
+                                    float t = distanceSquared >= 2400.0f
+                                        ? 1f
+                                        : Mathf.Min(
+                                            1f,
+                                            Mathf.Max(0.0f, Mathf.Sqrt(distanceSquared) / 48f)
+                                        );
+
+                                    if (spritePixel.a <= 0f)
+                                    {
+                                        pixelColor = baseColor;
+                                    }
+                                    else if (spritePixel.r < 0.5f)
+                                    {
+                                        pixelColor = Color.Lerp(foregroundColor, highlightColor, t);
+                                    }
+                                    else if (spritePixel.r > 0.5f)
+                                    {
+                                        pixelColor = Color.Lerp(detailColor, highlightColor, t);
+                                    }
+
+                                    int imageX = x * tileWidth + px;
+                                    int imageY = (24 - y) * tileHeight + py;
+
+                                    pixels[imageX + imageY * width] = pixelColor;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                _worldMapTexture.SetPixels(pixels);
+                _worldMapTexture.Apply(updateMipmaps: false);
+
+                _worldMapPlane.anchoredPosition = Vector2.zero;
+                _worldMapPlane.localScale = Vector3.one;
+
+                PositionWorldMapTargetMarker(playerLocation.X, playerLocation.Y);
+
+                SetCaptureStatus(
+                    source +
+                    ": world map overlay highlighting parasang (" +
+                    playerLocation.X +
+                    ", " +
+                    playerLocation.Y +
+                    ")"
+                );
+            }
+            catch (Exception ex)
+            {
+                SetCaptureStatus(
+                    source +
+                    ": world map render failed: " +
+                    ex.GetType().Name +
+                    ": " +
+                    ex.Message
+                );
+            }
+        }
+
+        private void PositionWorldMapTargetMarker(int parasangX, int parasangY)
+        {
+            if (_worldMapTargetMarker == null)
+            {
+                return;
+            }
+
+            // Our RawImage texture is 1280 x 600.
+            // The world map is 80 x 25 parasangs.
+            // Each parasang cell is 16 x 24 pixels.
+            float cellWidth = 16f;
+            float cellHeight = 24f;
+
+            float mapWidth = 1280f;
+            float mapHeight = 600f;
+
+            float markerX =
+                -mapWidth / 2f +
+                parasangX * cellWidth +
+                cellWidth / 2f;
+
+            float markerY =
+                mapHeight / 2f -
+                parasangY * cellHeight -
+                cellHeight / 2f;
+
+            _worldMapTargetMarker.anchoredPosition = new Vector2(markerX, markerY);
+            _worldMapTargetMarker.gameObject.SetActive(true);
+        }
+
+        //#####################################################    
+        //Raw keyboard controls and view state:
+        //HandleRawAutomapControls, pan, zoom, layer, reset, current-Z helpers
+        //#####################################################
+
+        private const float PanStep = 80f;
+        // Multiplicative zoom feels better than additive zoom.
+        // Zoom-out is intentionally stronger because finding offscreen tiles matters.
+        private const float ZoomInFactor = 1.15f;
+        private const float ZoomOutFactor = 0.82f;
+        private const float MinZoom = 0.04f;
+        private const float MaxZoom = 1.50f;
+        private int _panX;
+        private int _panY;
+        // Absolute Qud Z layer currently displayed.
+        // Surface is normally Z10.
+        private int _displayZ = int.MinValue;
+        private float _zoom = 1.0f;
+        private Vector2 _mapPlaneOffset = Vector2.zero;
+        
+         private void HandleRawAutomapControls()
+        {
+            try
+            {
+                // Keep Qud's queued input empty while the modal overlay is active.
+                ControlManager.ConsumeAllInput();
+
+                if (Input.GetKeyDown(UnityEngine.KeyCode.W))
+                {
+                    ToggleWorldMapOverlay();
+                    return;
+                }
+
+                if (_worldMapVisible)
+                {
+                    if (Input.GetKeyDown(UnityEngine.KeyCode.Escape))
+                    {
+                        ToggleWorldMapOverlay();
+                        return;
+                    }
+
+                    // While the world map overlay is visible, do not let pan/zoom/layer
+                    // controls affect the automap underneath.
+                    return;
+                }
+
+                if (Input.GetKeyDown(UnityEngine.KeyCode.Escape))
+                {
+                    AutomapInputGate.BlockUntilEscapeReleased();
+                    CloseWindow("Raw Esc");
+                    return;
+                }
+
+                if (Input.GetKeyDown(UnityEngine.KeyCode.LeftArrow) ||
+                    Input.GetKeyDown(UnityEngine.KeyCode.Keypad4))
+                {
+                    PanWest();
+                    return;
+                }
+
+                if (Input.GetKeyDown(UnityEngine.KeyCode.RightArrow) ||
+                    Input.GetKeyDown(UnityEngine.KeyCode.Keypad6))
+                {
+                    PanEast();
+                    return;
+                }
+
+                if (Input.GetKeyDown(UnityEngine.KeyCode.UpArrow) ||
+                    Input.GetKeyDown(UnityEngine.KeyCode.Keypad8))
+                {
+                    PanNorth();
+                    return;
+                }
+
+                if (Input.GetKeyDown(UnityEngine.KeyCode.DownArrow) ||
+                    Input.GetKeyDown(UnityEngine.KeyCode.Keypad2))
+                {
+                    PanSouth();
+                    return;
+                }
+
+                if (Input.GetKeyDown(UnityEngine.KeyCode.PageUp))
+                {
+                    LayerUp();
+                    return;
+                }
+
+                if (Input.GetKeyDown(UnityEngine.KeyCode.PageDown))
+                {
+                    LayerDown();
+                    return;
+                }
+
+                if (Input.GetKeyDown(UnityEngine.KeyCode.Equals) ||
+                    Input.GetKeyDown(UnityEngine.KeyCode.KeypadPlus))
+                {
+                    ZoomIn();
+                    return;
+                }
+
+                if (Input.GetKeyDown(UnityEngine.KeyCode.Minus) ||
+                    Input.GetKeyDown(UnityEngine.KeyCode.KeypadMinus))
+                {
+                    ZoomOut();
+                    return;
+                }
+
+                if (Input.GetKeyDown(UnityEngine.KeyCode.Home) ||
+                    Input.GetKeyDown(UnityEngine.KeyCode.Keypad5))
+                {
+                    ResetView();
+                    return;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                SetCaptureStatus(
+                    "Automap input failed: " +
+                    ex.GetType().Name +
+                    ": " +
+                    ex.Message
+                );
+            }
+        }
+         private bool TryGetCurrentZoneCoord(out AutomapZoneCoord coord)
+        {
+            coord = default(AutomapZoneCoord);
+
+            Zone currentZone = The.Player?.GetCurrentZone();
+
+            if (currentZone == null)
+            {
+                return false;
+            }
+
+            return AutomapZoneCoord.TryParse(currentZone.ZoneID, out coord);
+        }
+
+        private int GetCurrentZoneZOrSurface()
+        {
+            AutomapZoneCoord currentCoord;
+
+            if (TryGetCurrentZoneCoord(out currentCoord))
+            {
+                return currentCoord.Z;
+            }
+
+            return 10;
+        }
+
+        private void EnsureDisplayZInitialized()
+        {
+            if (_displayZ != int.MinValue)
+            {
+                return;
+            }
+
+            _displayZ = GetCurrentZoneZOrSurface();
+        }
+
+        private string GetLayerLabel(int z)
+        {
+            // Temporary but player-readable enough.
+            // Later we can tune names.
+            if (z == 10)
+            {
+                return "Surface / Z10";
+            }
+
+            if (z > 10)
+            {
+                return "Subterranean " + (z - 10) + " / Z" + z;
+            }
+
+            return "Aboveground " + (10 - z) + " / Z" + z;
+        }
+
+        private void PanNorth()
+        {
+            _panY--;
+            _mapPlaneOffset.y -= PanStep;
+            RefreshMapTiles("PanNorth");
+        }
+
+        private void PanSouth()
+        {
+            _panY++;
+            _mapPlaneOffset.y += PanStep;
+            RefreshMapTiles("PanSouth");
+        }
+
+        private void PanWest()
+        {
+            _panX--;
+            _mapPlaneOffset.x += PanStep;
+            RefreshMapTiles("PanWest");
+        }
+
+        private void PanEast()
+        {
+            _panX++;
+            _mapPlaneOffset.x -= PanStep;
+            RefreshMapTiles("PanEast");
+        }
+
+        private void LayerUp()
+        {
+            EnsureDisplayZInitialized();
+
+            // In Qud, smaller Z is higher/aboveground.
+            _displayZ--;
+
+            LoadCapturedZoneTilesForCurrentLayer("LayerUp");
+        }
+
+        private void LayerDown()
+        {
+            EnsureDisplayZInitialized();
+
+            // Larger Z is deeper/subterranean.
+            _displayZ++;
+
+            LoadCapturedZoneTilesForCurrentLayer("LayerDown");
+        }
+
+        private void ZoomIn()
+        {
+            SetZoomAroundViewportCenter(
+                Mathf.Min(MaxZoom, _zoom * ZoomInFactor),
+                "ZoomIn"
+            );
+        }
+
+        private void ZoomOut()
+        {
+            SetZoomAroundViewportCenter(
+                Mathf.Max(MinZoom, _zoom * ZoomOutFactor),
+                "ZoomOut"
+            );
+        }
+
+        private void SetZoomAroundViewportCenter(float newZoom, string source)
+        {
+            float oldZoom = _zoom;
+
+            if (oldZoom <= 0f)
+            {
+                oldZoom = 1f;
+            }
+
+            if (Mathf.Approximately(oldZoom, newZoom))
+            {
+                _zoom = newZoom;
+                RefreshMapTiles(source);
+                return;
+            }
+
+            float ratio = newZoom / oldZoom;
+
+            // Preserve the map coordinate currently under the viewport center.
+            _mapPlaneOffset *= ratio;
+
+            _zoom = newZoom;
+
+            RefreshMapTiles(source);
+        }
+
+        private void ResetView()
+        {
+            _panX = 0;
+            _panY = 0;
+            _mapPlaneOffset = Vector2.zero;
+            _zoom = 1.0f;
+            _displayZ = GetCurrentZoneZOrSurface();
+
+            LoadCapturedZoneTilesForCurrentLayer("ResetView");
+        }
+
     }
 }
