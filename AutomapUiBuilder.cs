@@ -279,6 +279,9 @@ namespace CoQAutoMap
     private UnityEngine.UI.Text _helpText;
     private RectTransform _mapPlane;
     private RectTransform _zoneTileContainer;
+    private RectTransform _mapViewportRect;
+    private bool _isDraggingMap;
+    private Vector2 _lastMousePosition;
 
     // Builds the Unity overlay UI once and keeps it hidden until the automap opens.
     // This creates the main automap frame, the stitched-zone map plane, the world map
@@ -528,10 +531,6 @@ namespace CoQAutoMap
         layerValueRect.offsetMin = Vector2.zero;
         layerValueRect.offsetMax = Vector2.zero;
     }
-
-   
-   
-
     private void CreateHeaderLine(
         string name,
         Transform parent,
@@ -607,6 +606,10 @@ namespace CoQAutoMap
         );
 
         RectTransform viewportRect = viewport.GetComponent<RectTransform>();
+
+        //for mouse integration
+        _mapViewportRect = viewportRect;
+
         viewportRect.anchorMin = new Vector2(0.035f, 0.115f);
         viewportRect.anchorMax = new Vector2(0.965f, 0.885f);
         viewportRect.offsetMin = Vector2.zero;
@@ -1138,7 +1141,7 @@ namespace CoQAutoMap
 
         //#####################################################    
         //Raw keyboard controls and view state:
-        //HandleRawAutomapControls, pan, zoom, layer, reset, current-Z helpers
+        //HandleRawAutomapControls, pan, zoom, layer, reset, current-Z helpers, mouse helpers
         //#####################################################
 
         private const float PanStep = 80f;
@@ -1166,6 +1169,11 @@ namespace CoQAutoMap
                 if (Input.GetKeyDown(UnityEngine.KeyCode.W))
                 {
                     ToggleWorldMapOverlay();
+                    return;
+                }
+
+                if (HandleMouseAutomapControls())
+                {
                     return;
                 }
 
@@ -1314,6 +1322,105 @@ namespace CoQAutoMap
             return "Sky " + (10 - z);
         }
 
+        private bool HandleMouseAutomapControls()
+        {
+            if (_worldMapVisible)
+            {
+                _isDraggingMap = false;
+                return false;
+            }
+
+            bool mouseOverMap = IsMouseOverMapViewport();
+
+            float wheelDelta = Input.mouseScrollDelta.y;
+
+            if (mouseOverMap && wheelDelta != 0f)
+            {
+                Vector2 localMousePoint;
+
+                if (!TryGetMousePositionInMapViewport(out localMousePoint))
+                {
+                    return false;
+                }
+
+                float newZoom = wheelDelta > 0f
+                    ? Mathf.Min(MaxZoom, _zoom * ZoomInFactor)
+                    : Mathf.Max(MinZoom, _zoom * ZoomOutFactor);
+
+                SetZoomAroundViewportPoint(
+                    newZoom,
+                    localMousePoint,
+                    wheelDelta > 0f ? "MouseZoomIn" : "MouseZoomOut"
+                );
+
+                return true;
+            }
+
+            if (Input.GetMouseButtonDown(0) && mouseOverMap)
+            {
+                _isDraggingMap = true;
+                _lastMousePosition = Input.mousePosition;
+                return true;
+            }
+
+            if (Input.GetMouseButtonUp(0))
+            {
+                _isDraggingMap = false;
+                return true;
+            }
+
+            if (_isDraggingMap && Input.GetMouseButton(0))
+            {
+                Vector2 currentMousePosition = Input.mousePosition;
+                Vector2 delta = currentMousePosition - _lastMousePosition;
+
+                if (delta.sqrMagnitude > 0.01f)
+                {
+                    _mapPlaneOffset += delta;
+                    _lastMousePosition = currentMousePosition;
+                    RefreshMapTiles("MouseDrag");
+                }
+
+                return true;
+            }
+
+            if (_isDraggingMap && !Input.GetMouseButton(0))
+            {
+                _isDraggingMap = false;
+            }
+
+            return false;
+        }
+        private bool IsMouseOverMapViewport()
+        {
+            if (_mapViewportRect == null)
+            {
+                return false;
+            }
+
+            return RectTransformUtility.RectangleContainsScreenPoint(
+                _mapViewportRect,
+                Input.mousePosition
+            );
+        }
+
+        private bool TryGetMousePositionInMapViewport(out Vector2 localPoint)
+        {
+            localPoint = Vector2.zero;
+
+            if (_mapViewportRect == null)
+            {
+                return false;
+            }
+
+            return RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                _mapViewportRect,
+                Input.mousePosition,
+                null,
+                out localPoint
+            );
+        }
+
         private void PanNorth()
         {
             _panY--;
@@ -1414,6 +1521,34 @@ namespace CoQAutoMap
 
             LoadCapturedZoneTilesForCurrentLayer("ResetView");
         }
+
+        private void SetZoomAroundViewportPoint(float newZoom, Vector2 viewportLocalPoint, string source)
+        {
+            float oldZoom = _zoom;
+
+            if (oldZoom <= 0f)
+            {
+                oldZoom = 1f;
+            }
+
+            if (Mathf.Approximately(oldZoom, newZoom))
+            {
+                _zoom = newZoom;
+                RefreshMapTiles(source);
+                return;
+            }
+
+            float ratio = newZoom / oldZoom;
+
+            // Keep the map coordinate currently under viewportLocalPoint
+            // under that same point after scaling.
+            _mapPlaneOffset = viewportLocalPoint - (viewportLocalPoint - _mapPlaneOffset) * ratio;
+
+            _zoom = newZoom;
+
+            RefreshMapTiles(source);
+        }
+
 
     }
 }

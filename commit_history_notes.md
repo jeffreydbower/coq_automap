@@ -89,3 +89,6 @@ First UI pass. Commit before flair is added.
 
 - 22: 7/18/26 ~12:28pm
 UI Release Candidate done.
+
+- 23: 7/18/26 ~3:37pm
+Mouse grap-pan and to-cursor zoom implemented.
