@@ -1,29 +1,73 @@
-# CoQ Auto-Map
+# CoQ Auto-Map / Atlas
 
-Experimental automap mod for Caves of Qud. It captures explored zones as images and stitches them together by world, layer, and position, creating a continuous map of explored areas you can view. Adds a toggled world map overlay so players can tell where they are on the surface while underground.
+Status: somehow, no longer a prototype.
+
+Atlas is an in-game automap mod for Caves of Qud. It captures explored zones as image tiles, saves them to the player's active save/cache directory, and stitches them together into a continuous layer-aware map. It also includes a world map overlay so players can tell where they are on the surface while exploring underground.
+
+## Release candidate status
+
+The core feature set is implemented and ready for normal-game playtesting.
 
 ## Implemented
 
-- Render zones to .png image that can be saved to disk
-- Images saved in the player's active save dir under ...\automap\tiles. Steam cloud will accept them.
-- Zone image captured on automap open and when leaving zone.
-- Unexplored areas are not revealed and are black
-- On the automap unexplored areas are rendered without any shading for clarity. This does not reveal anything extra to the player they could not already see.
-- Stand-alone UI window that displays the automap, captures keyboard controls, and displays the current layer
-- Automap controls: Pan(N/E/S/W), Bilinear Zoom(+/-), Center on Player, Switch Layer(+/-), Render current zone
-- Controls are contained to automap window while it is open
-- Zone images stitched together at correct world positions on map plane and presented in automap window
-- World map overlay that highlights current parasang player is in
+- Captures explored zones as `.png` image tiles.
+- Saves automap images under the player's active save/cache directory in `Automap\tiles`. Steam cloud compatable.
+- Captures the current zone when Atlas opens.
+- Captures zones automatically when leaving a zone.
+- Does not reveal unexplored cells.
+- Renders unexplored areas as black.
+- Renders explored-but-not-currently-visible cells readably, without vanilla remembered-map darkening.
+- Stitches captured zone images together by world, layer, parasang, and local zone position.
+- Supports surface, subterranean, and sky layers.
+- Provides a stand-alone Qud-styled Atlas UI.
+- Shows the current displayed layer in the header.
+- Supports keyboard pan, zoom, layer switching, and reset.
+- Supports mouse drag-pan.
+- Supports mouse wheel zoom.
+- Mouse wheel zoom is centered on the cursor.
+- Includes a world map overlay showing the current parasang while underground.
+- Blocks normal game input while Atlas is open.
+- Uses `Ctrl+M` to open Atlas.
+- Uses `Esc` to close Atlas.
+- Keeps controls contained to the Atlas window while open.
 
-## Desired refinements
+## Current controls
 
-- Clean up old dummy-grid prototype code.
-- Improve UI layout, style, and labels
-- Add better status text for tile count, layer, zoom, and cache path.
-- Tune zoom and pan feel.
-- Add mouse support for pan and zoom
-- Add optional world map pan/zoom or a better fixed full-map view.
-- Add cache management or a warning about disk usage.
-- Add config/keybinding support.
-- Add better documentation for players.
-- Do a code cleanup pass before release.
+- `Ctrl+M`: open Atlas
+- `Esc`: close Atlas, or hide the world map overlay first
+- `W`: toggle world map overlay
+- Mouse drag: pan
+- Mouse wheel: zoom toward cursor
+- Arrow keys / numpad: pan
+- `PgUp` / `PgDn`: switch layer
+- `+` / `-`: zoom
+- `Home` / numpad `5`: reset view
+
+## Release notes / warnings
+
+Atlas stores explored zone images on disk. Long-running games, very large explored areas, or deliberate attempts to map huge portions of the world may use substantial disk space.
+
+## Pre-release checklist
+
+- Playtest in a normal game for several hours.
+- Confirm zone capture works through ordinary exploration.
+- Confirm underground exploration creates useful stitched maps.
+- Confirm layer switching behaves clearly when a layer has no captured tiles.
+- Confirm mouse pan and zoom remain comfortable at close and far zoom.
+- Confirm world map overlay works underground.
+- Confirm `Esc` returns cleanly to normal game input.
+- Confirm no unexplored areas are revealed.
+- Check approximate disk usage after a realistic session.
+- Capture workshop screenshots from normal play.
+- Create workshop cover / preview art.
+- Write README and Steam Workshop description.
+- First workshop upload to obtain the Workshop ID.
+- Update `workshop.json` after the Workshop ID exists.
+
+## Future ideas, not required for first release
+
+- Optional world map overlay polish.
+- Optional cache-size tooling or cache cleanup helper.
+- Optional additional map markers.
+- Optional UI refinements after player feedback.
+- Compatibility maintenance if Caves of Qud rendering internals change.

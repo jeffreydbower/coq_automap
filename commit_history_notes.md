@@ -95,3 +95,6 @@ Mouse grap-pan and to-cursor zoom implemented.
 
 - 24: 7/18/26 ~5:13pm
 Pan / Zoom and Control tuning.
+
+- 25: 7/18/26 ~5:26pm
+Tiny code clean up and project status update
