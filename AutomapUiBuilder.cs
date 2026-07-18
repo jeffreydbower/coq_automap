@@ -18,7 +18,6 @@ namespace CoQAutoMap
 {
     public sealed partial class AutomapController
     {
-
     //#####################################################    
     //Open/close/navigation context:
     //OpenWindow, CloseWindow, RegisterCommand, RestorePreviousNavigationContext
@@ -250,7 +249,8 @@ namespace CoQAutoMap
         }
     }
 
-    //Check is still used
+    // Unity lifecycle cleanup.
+    // This normally only matters during shutdown/reload because the controller is DontDestroyOnLoad.
     private void OnDestroy()
     {
         try
@@ -835,7 +835,7 @@ namespace CoQAutoMap
         private string GetFormattedHelpText()
         {
             return
-                GetFormattedKeyText("Ctrl+M") + " <color=#b1c9c3>Toggle</color>   " +
+                GetFormattedKeyText("Ctrl+M") + " <color=#b1c9c3>Open</color>   " +
                 GetFormattedKeyText("Esc") + " <color=#b1c9c3>Close</color>   " +
                 GetFormattedKeyText("W") + " <color=#b1c9c3>World Map</color>   " +
                 GetFormattedKeyText("Arrows/Numpad") + " <color=#b1c9c3>Pan</color>   " +
@@ -1149,7 +1149,7 @@ namespace CoQAutoMap
         // Zoom-out is intentionally stronger because finding offscreen tiles matters.
         private const float ZoomInFactor = 1.15f;
         private const float ZoomOutFactor = 0.82f;
-        private const float MinZoom = 0.04f;
+        private const float MinZoom = 0.01f;
         private const float MaxZoom = 1.50f;
         private int _panX;
         private int _panY;
@@ -1548,7 +1548,5 @@ namespace CoQAutoMap
 
             RefreshMapTiles(source);
         }
-
-
     }
 }

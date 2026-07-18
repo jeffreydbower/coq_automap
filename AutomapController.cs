@@ -112,7 +112,6 @@ namespace CoQAutoMap
 
     public sealed partial class AutomapController : MonoBehaviour
     {
-
         //#####################################################  
         //Automap Controller Core    
         //Root singleton/install/update loop:
@@ -122,7 +121,6 @@ namespace CoQAutoMap
         private const string ControllerName = "CoQAutoMap_Controller";
         private static AutomapController _instance;
         private bool _isOpen;
-        private bool _suppressToggleUntilReleased;
 
         public static void QueueDeactivatedZoneCapture(Zone zone, string source)
         {
@@ -231,41 +229,13 @@ namespace CoQAutoMap
 
                 PollZoneCapture();
 
-                bool ctrlDown =
-                    Input.GetKey(UnityEngine.KeyCode.LeftControl) ||
-                    Input.GetKey(UnityEngine.KeyCode.RightControl);
-
-                bool ctrlMDown = ctrlDown && Input.GetKeyDown(UnityEngine.KeyCode.M);
-
-                if (_suppressToggleUntilReleased)
-                {
-                    bool stillHeld =
+                if (!_isOpen && Input.GetKeyDown(UnityEngine.KeyCode.M) &&
+                    (
                         Input.GetKey(UnityEngine.KeyCode.LeftControl) ||
-                        Input.GetKey(UnityEngine.KeyCode.RightControl) ||
-                        Input.GetKey(UnityEngine.KeyCode.M);
-
-                    if (stillHeld)
-                    {
-                        return;
-                    }
-
-                    _suppressToggleUntilReleased = false;
-                }
-
-                // Keep Ctrl+M as a raw Unity bootstrap hotkey for now.
-                // All Automap controls after opening should be handled through Qud's NavigationContext.
-                if (ctrlMDown)
+                        Input.GetKey(UnityEngine.KeyCode.RightControl)
+                    ))
                 {
-                    if (_isOpen)
-                    {
-                        CloseWindow("Ctrl+M raw toggle");
-                    }
-                    else
-                    {
-                        OpenWindow("Ctrl+M raw toggle");
-                    }
-
-                    _suppressToggleUntilReleased = true;
+                    OpenWindow("Ctrl+M raw open");
                     return;
                 }
 
@@ -296,7 +266,6 @@ namespace CoQAutoMap
         private bool _capturePending;
         private bool _captureComplete;
         private bool _captureLoadWhenComplete;
-
         private string _capturePath;
         private string _captureError;
         private DateTime _captureStartTime;
@@ -422,7 +391,6 @@ namespace CoQAutoMap
         //https://github.com/kernelmethod/Qud-WorldMap-Viewer
         private void CaptureZoneToPngQueued(Zone zone, string savePath)
         {
-
             try
             {
                 int zoneWidth = zone.Width;
@@ -962,9 +930,5 @@ namespace CoQAutoMap
             }
             //Log(message);
         }
-
-
-
-
     }
 }

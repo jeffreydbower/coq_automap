@@ -92,3 +92,6 @@ UI Release Candidate done.
 
 - 23: 7/18/26 ~3:37pm
 Mouse grap-pan and to-cursor zoom implemented.
+
+- 24: 7/18/26 ~5:13pm
+Pan / Zoom and Control tuning.
