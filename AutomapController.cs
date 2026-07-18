@@ -769,7 +769,8 @@ namespace CoQAutoMap
 
                 if (_layerText != null)
                 {
-                    _layerText.text = "Layer: " + GetLayerLabel(displayZ);
+                    // GetFormattedLayerName is in AutomapUiBuilder.cs
+                    _layerText.text = GetFormattedLayerName(displayZ);
                 }
 
 
@@ -928,7 +929,8 @@ namespace CoQAutoMap
 
             if (_layerText != null)
             {
-                _layerText.text = "Layer: " + GetLayerLabel(_displayZ);
+                //GetFormattedLayerName is in AutomapUiBuilder.cs
+                _layerText.text = GetFormattedLayerName(_displayZ);
             }
 
             if (_statusText != null)

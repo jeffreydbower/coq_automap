@@ -83,3 +83,6 @@ Cleaned Automap controller core AutomapController.cs, and other small clean ups 
 
 - 20: 7/17/26 ~9:48
 Consolodated multiple files.
+
+- 21: 7/18/26 ~12:28pm
+First UI pass. Commit before flair is added.

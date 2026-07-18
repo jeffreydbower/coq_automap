@@ -357,7 +357,7 @@ namespace CoQAutoMap
         UnityEngine.GameObject frame = CreatePanel(
             "Frame",
             _root.transform,
-            new Color(0.06f, 0.08f, 0.07f, 1f)
+            UiColor("#155352") // K dark grey
         );
 
         RectTransform frameRect = frame.GetComponent<RectTransform>();
@@ -368,15 +368,15 @@ namespace CoQAutoMap
 
         // Green outline gives the temporary UI a Qud-ish framed-panel feel.
         Outline frameOutline = frame.AddComponent<Outline>();
-        frameOutline.effectDistance = new Vector2(3f, -3f);
-        frameOutline.effectColor = new Color(0.45f, 0.75f, 0.55f, 1f);
+        frameOutline.effectDistance = new Vector2(1f, -1f);
+        frameOutline.effectColor = UiColor("#b1c9c3"); // y grey
 
         // Inner panel.
         // This is the real content area inside the outer border.
         UnityEngine.GameObject inner = CreatePanel(
             "Inner",
             frame.transform,
-            new Color(0.0f, 0.0f, 0.0f, 0.96f)
+            UiColor("#0f3b3a") // k dark black / Qud viridian
         );
 
         RectTransform innerRect = inner.GetComponent<RectTransform>();
@@ -395,35 +395,32 @@ namespace CoQAutoMap
         _titleText = CreateText(
             "Title",
             parent,
-            "CoQ Auto-Map",
+            "Atlas",
             34,
             TextAnchor.MiddleLeft,
-            Color.white
+            UiColor("#40a4b9") // c dark cyan / Qud title blue candidate
         );
 
         RectTransform titleRect = _titleText.GetComponent<RectTransform>();
-        titleRect.anchorMin = new Vector2(0.025f, 0.90f);
+        titleRect.anchorMin = new Vector2(0.035f, 0.90f);
         titleRect.anchorMax = new Vector2(0.55f, 0.985f);
         titleRect.offsetMin = Vector2.zero;
         titleRect.offsetMax = Vector2.zero;
 
-        // Layer indicator.
-        // This is updated when the player changes displayed Z layers.
-        // The initial text is only a placeholder until runtime layer state is set.
-        _layerText = CreateText(
-            "LayerIndicator",
+       _layerText = CreateText(
+            "LayerValue",
             parent,
-            "Layer: Surface / Z0",
-            24,
+            GetFormattedLayerName(10),
+            28,
             TextAnchor.MiddleRight,
-            new Color(0.65f, 1f, 0.72f, 1f)
+            UiColor("#b1c9c3") // y grey
         );
 
-        RectTransform layerRect = _layerText.GetComponent<RectTransform>();
-        layerRect.anchorMin = new Vector2(0.55f, 0.90f);
-        layerRect.anchorMax = new Vector2(0.975f, 0.985f);
-        layerRect.offsetMin = Vector2.zero;
-        layerRect.offsetMax = Vector2.zero;
+        RectTransform layerValueRect = _layerText.GetComponent<RectTransform>();
+        layerValueRect.anchorMin = new Vector2(0.55f, 0.90f);
+        layerValueRect.anchorMax = new Vector2(0.965f, 0.985f);
+        layerValueRect.offsetMin = Vector2.zero;
+        layerValueRect.offsetMax = Vector2.zero;
     }
 
     private void CreateStatusAndHelpUi(Transform parent)
@@ -436,8 +433,11 @@ namespace CoQAutoMap
             "",
             20,
             TextAnchor.MiddleLeft,
-            new Color(0.9f, 0.9f, 0.78f, 1f)
+            UiColor("#b1c9c3") // y grey
         );
+
+        //deactivating the status text
+        _statusText.gameObject.SetActive(false);
 
         RectTransform statusRect = _statusText.GetComponent<RectTransform>();
         statusRect.anchorMin = new Vector2(0.025f, 0.08f);
@@ -450,10 +450,10 @@ namespace CoQAutoMap
         _helpText = CreateText(
             "Help",
             parent,
-            "[Ctrl+M] toggle   [Esc] close   [W] world map   [Arrows/Numpad] pan   [PgUp/PgDn] layer   [+/-] zoom   [Home] reset",
+            GetFormattedHelpText(),
             18,
             TextAnchor.MiddleCenter,
-            new Color(0.6f, 0.95f, 1f, 1f)
+            UiColor("#b1c9c3") // y grey
         );
 
         RectTransform helpRect = _helpText.GetComponent<RectTransform>();
@@ -466,18 +466,28 @@ namespace CoQAutoMap
     private void CreateAutomapViewportUi(Transform parent)
     {
         // Main automap viewport.
-        // This is the clipped window through which the stitched zone map is viewed.
+        // This is the black clipped window through which the stitched zone map is viewed.
+        // The automap tiles must never draw outside this black area.
         UnityEngine.GameObject viewport = CreatePanel(
             "MapViewport",
             parent,
-            new Color(0.02f, 0.025f, 0.02f, 1f)
+            Color.black
         );
 
         RectTransform viewportRect = viewport.GetComponent<RectTransform>();
-        viewportRect.anchorMin = new Vector2(0.025f, 0.155f);
-        viewportRect.anchorMax = new Vector2(0.975f, 0.895f);
+        viewportRect.anchorMin = new Vector2(0.035f, 0.115f);
+        viewportRect.anchorMax = new Vector2(0.965f, 0.885f);
         viewportRect.offsetMin = Vector2.zero;
         viewportRect.offsetMax = Vector2.zero;
+
+        // Mask clips the map plane to the visible viewport rectangle.
+        // Without this, panned/zoomed map tiles would draw outside the map window.
+        Mask mask = viewport.AddComponent<Mask>();
+        mask.showMaskGraphic = true;
+
+        //Outline viewportOutline = viewport.AddComponent<Outline>();
+        //viewportOutline.effectDistance = new Vector2(1f, -1f);
+        //viewportOutline.effectColor = QudGrey;
 
         // MapPlane is the panned/scaled object.
         // Pan and zoom operate on this RectTransform, not on individual zone images.
@@ -506,15 +516,67 @@ namespace CoQAutoMap
         _zoneTileContainer.sizeDelta = Vector2.zero;
         _zoneTileContainer.localScale = Vector3.one;
 
-        // Mask clips the map plane to the visible viewport rectangle.
-        // Without this, panned/zoomed map tiles would draw outside the map window.
-        Mask mask = viewport.AddComponent<Mask>();
-        mask.showMaskGraphic = true;
+        // Viewport border overlay.
+        // Four thin line images are safer than Unity's Outline component here,
+        // because Outline duplicates full Image geometry and can create a filled rectangle.
+        CreateViewportBorderLine(
+            "MapViewportBorderTop",
+            viewport.transform,
+            new Vector2(0f, 1f),
+            new Vector2(1f, 1f),
+            new Vector2(0f, -1f),
+            new Vector2(0f, 0f)
+        );
 
-        // Viewport border.
-        Outline viewportOutline = viewport.AddComponent<Outline>();
-        viewportOutline.effectDistance = new Vector2(2f, -2f);
-        viewportOutline.effectColor = new Color(0.25f, 0.5f, 0.35f, 1f);
+        CreateViewportBorderLine(
+            "MapViewportBorderBottom",
+            viewport.transform,
+            new Vector2(0f, 0f),
+            new Vector2(1f, 0f),
+            new Vector2(0f, 0f),
+            new Vector2(0f, 1f)
+        );
+
+        CreateViewportBorderLine(
+            "MapViewportBorderLeft",
+            viewport.transform,
+            new Vector2(0f, 0f),
+            new Vector2(0f, 1f),
+            new Vector2(0f, 0f),
+            new Vector2(1f, 0f)
+        );
+
+        CreateViewportBorderLine(
+            "MapViewportBorderRight",
+            viewport.transform,
+            new Vector2(1f, 0f),
+            new Vector2(1f, 1f),
+            new Vector2(-1f, 0f),
+            new Vector2(0f, 0f)
+        );
+    }
+
+    private void CreateViewportBorderLine(
+        string name,
+        Transform parent,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        Vector2 offsetMin,
+        Vector2 offsetMax
+    )
+    {
+        UnityEngine.GameObject lineObject = new UnityEngine.GameObject(name);
+        lineObject.transform.SetParent(parent, false);
+
+        RectTransform rect = lineObject.AddComponent<RectTransform>();
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.offsetMin = offsetMin;
+        rect.offsetMax = offsetMax;
+
+        Image image = lineObject.AddComponent<Image>();
+        image.color = UiColor("#b1c9c3"); // y grey
+        image.raycastTarget = false;
     }
 
     private void CreateWorldMapOverlayUi(Transform parent)
@@ -538,7 +600,7 @@ namespace CoQAutoMap
 
             Outline worldMapOutline = worldMapRoot.AddComponent<Outline>();
             worldMapOutline.effectDistance = new Vector2(2f, -2f);
-            worldMapOutline.effectColor = new Color(0.45f, 0.75f, 0.55f, 1f);
+            worldMapOutline.effectColor = UiColor("#b1c9c3"); // y grey
 
             // WorldMapPlane holds the rendered 80x25 world map texture.
             // Unlike the stitched automap, this is currently shown as a fixed full-map panel.
@@ -625,6 +687,7 @@ namespace CoQAutoMap
 
             UnityEngine.UI.Text uiText = textObject.AddComponent<UnityEngine.UI.Text>();
             uiText.text = text;
+            uiText.supportRichText = true;
             uiText.fontSize = fontSize;
             uiText.alignment = alignment;
             uiText.color = color;
@@ -633,6 +696,52 @@ namespace CoQAutoMap
             uiText.verticalOverflow = VerticalWrapMode.Overflow;
 
             return uiText;
+        }
+        private string GetFormattedHelpText()
+        {
+            return
+                GetFormattedKeyText("Ctrl+M") + " <color=#b1c9c3>Toggle</color>   " +
+                GetFormattedKeyText("Esc") + " <color=#b1c9c3>Close</color>   " +
+                GetFormattedKeyText("W") + " <color=#b1c9c3>World Map</color>   " +
+                GetFormattedKeyText("Arrows/Numpad") + " <color=#b1c9c3>Pan</color>   " +
+                GetFormattedKeyText("PgUp/PgDn") + " <color=#b1c9c3>Layer</color>   " +
+                GetFormattedKeyText("+/-") + " <color=#b1c9c3>Zoom</color>   " +
+                GetFormattedKeyText("Home") + " <color=#b1c9c3>Reset</color>";
+        }
+
+        private string GetFormattedLayerName(int z)
+        {
+            if (z == 10)
+            {
+                return "<color=#98875f>Surface</color>"; // w brown
+            }
+
+            if (z > 10)
+            {
+                return "<color=#a64a2e>Subterranean " + (z - 10) + "</color>";
+            }
+
+            return "<color=#40a4b9>Sky " + (10 - z) + "</color>";
+        }
+
+        private string GetFormattedKeyText(string keyText)
+        {
+            return
+                "<color=#b1c9c3>[</color>" +
+                "<color=#cfc041>" + keyText + "</color>" +
+                "<color=#b1c9c3>]</color>";
+        }
+
+        private static Color UiColor(string hex)
+        {
+            Color color;
+
+            if (UnityEngine.ColorUtility.TryParseHtmlString(hex, out color))
+            {
+                return color;
+            }
+
+            return Color.white;
         }
 
         //#####################################################    
@@ -1062,15 +1171,15 @@ namespace CoQAutoMap
             // Later we can tune names.
             if (z == 10)
             {
-                return "Surface / Z10";
+                return "Surface";
             }
 
             if (z > 10)
             {
-                return "Subterranean " + (z - 10) + " / Z" + z;
+                return "Subterranean " + (z - 10);
             }
 
-            return "Aboveground " + (10 - z) + " / Z" + z;
+            return "Sky " + (10 - z);
         }
 
         private void PanNorth()
