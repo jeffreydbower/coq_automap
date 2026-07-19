@@ -101,3 +101,9 @@ Tiny code clean up and project status update
 
 - 26: 7/18/26 ~7:43pm
 Made Atlas center on player when it is opened.
+
+- 27: 7/18/26 ~11:11pm
+Created readme.txt, preview.png, and updated manifest.json for release
+
+- 28: 7/18/26 ~11:16pm
+Final updates for release.
