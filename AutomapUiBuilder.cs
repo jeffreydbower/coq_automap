@@ -79,7 +79,7 @@ namespace CoQAutoMap
 
             CenterViewOnPlayer();
 
-            RefreshMapTiles(source);
+            LoadCapturedZoneTilesForCurrentLayer(source);
 
             StartCaptureCurrentZoneImage(source);
         }
@@ -114,6 +114,8 @@ namespace CoQAutoMap
         {
             _root.SetActive(false);
         }
+
+        ClearPendingVisibleTileLoads();
 
         RestorePreviousNavigationContext(source);
 
@@ -1378,7 +1380,7 @@ namespace CoQAutoMap
                 {
                     _mapPlaneOffset += delta;
                     _lastMousePosition = currentMousePosition;
-                    RefreshMapTiles("MouseDrag");
+                    RefreshVisibleZoneTiles("MouseDrag");
                 }
 
                 return true;
@@ -1425,28 +1427,28 @@ namespace CoQAutoMap
         {
             _panY--;
             _mapPlaneOffset.y -= PanStep;
-            RefreshMapTiles("PanNorth");
+            RefreshVisibleZoneTiles("PanNorth");
         }
 
         private void PanSouth()
         {
             _panY++;
             _mapPlaneOffset.y += PanStep;
-            RefreshMapTiles("PanSouth");
+            RefreshVisibleZoneTiles("PanSouth");
         }
 
         private void PanWest()
         {
             _panX--;
             _mapPlaneOffset.x += PanStep;
-            RefreshMapTiles("PanWest");
+            RefreshVisibleZoneTiles("PanWest");
         }
 
         private void PanEast()
         {
             _panX++;
             _mapPlaneOffset.x -= PanStep;
-            RefreshMapTiles("PanEast");
+            RefreshVisibleZoneTiles("PanEast");
         }
 
         private void LayerUp()
@@ -1497,7 +1499,7 @@ namespace CoQAutoMap
             if (Mathf.Approximately(oldZoom, newZoom))
             {
                 _zoom = newZoom;
-                RefreshMapTiles(source);
+                RefreshVisibleZoneTiles(source);
                 return;
             }
 
@@ -1508,7 +1510,7 @@ namespace CoQAutoMap
 
             _zoom = newZoom;
 
-            RefreshMapTiles(source);
+            RefreshVisibleZoneTiles(source);
         }
 
         private void CenterViewOnPlayer()
@@ -1550,7 +1552,7 @@ namespace CoQAutoMap
             if (Mathf.Approximately(oldZoom, newZoom))
             {
                 _zoom = newZoom;
-                RefreshMapTiles(source);
+                RefreshVisibleZoneTiles(source);
                 return;
             }
 
@@ -1562,7 +1564,7 @@ namespace CoQAutoMap
 
             _zoom = newZoom;
 
-            RefreshMapTiles(source);
+            RefreshVisibleZoneTiles(source);
         }
     }
 }

@@ -241,6 +241,7 @@ namespace CoQAutoMap
                 if (_isOpen)
                 {
                     HandleRawAutomapControls();
+                    ProcessPendingVisibleTileLoads();
                 }
             }
             catch (Exception ex)
@@ -606,6 +607,9 @@ namespace CoQAutoMap
                 return;
             }
 
+            MarkTileIndexDirty();
+            ClearLoadedZoneTiles();
+
             try
             {
                 TimeSpan elapsed = DateTime.Now - _captureStartTime;
@@ -666,43 +670,182 @@ namespace CoQAutoMap
 
             return value;
         }
-        
+
         //#####################################################    
         // Loaded PNG tile display:
-        // LoadCapturedZoneTilesForCurrentLayer, RefreshMapTiles, ApplyMapPlaneTransform
+        // lightweight filename index + lazy visible tile loading
         //#####################################################
 
-        private readonly List<UnityEngine.GameObject> _loadedZoneTileObjects = new List<UnityEngine.GameObject>();
-        private readonly List<Texture2D> _loadedZoneTileTextures = new List<Texture2D>();
+        private sealed class AutomapKnownTile
+        {
+            public string Key;
+            public string Path;
+            public AutomapZoneCoord Coord;
+        }
+
+        private sealed class AutomapLoadedTile
+        {
+            public AutomapKnownTile KnownTile;
+            public Texture2D Texture;
+            public UnityEngine.GameObject GameObject;
+        }
+
+        private const int AutomapTilePixelWidth = 1280;
+        private const int AutomapTilePixelHeight = 600;
+
+        // One-zone preload margin prevents edge pop-in at close/medium zoom.
+        // At very far zoom the viewport already covers many zones, so the margin is disabled.
+        private const int NormalTileLoadMarginZones = 1;
+        private const float NoMarginZoomThreshold = 0.10f;
+
+        // Number of PNG tiles to decode/create per frame during progressive loading.
+        // 24 was chosen from testing on an older (circa 2015) i5-6600K / GTX 970 machine:
+        // low enough to avoid the old full-layer hitch, high enough that normal
+        // visible Atlas views usually appear immediately.
+        private const int MaxTileLoadsPerFrame = 24;
+
+        private readonly Queue<AutomapKnownTile> _pendingVisibleTileLoads =
+            new Queue<AutomapKnownTile>();
+
+        private readonly HashSet<string> _pendingVisibleTileLoadKeys =
+            new HashSet<string>();
+
+        private readonly Dictionary<string, AutomapKnownTile> _knownTilesByKey =
+            new Dictionary<string, AutomapKnownTile>();
+
+        private readonly Dictionary<string, AutomapLoadedTile> _visibleLoadedTilesByKey =
+            new Dictionary<string, AutomapLoadedTile>();
+
+        private string _indexedTileDirectory;
+        private string _indexedWorld;
+        private int _indexedZ = int.MinValue;
+        private bool _tileIndexDirty = true;
+
+        private string _loadedTileCenterZoneId;
+        private int _loadedTileZ = int.MinValue;
+
+        private void MarkTileIndexDirty()
+        {
+            _tileIndexDirty = true;
+        }
 
         private void ClearLoadedZoneTiles()
         {
-            for (int i = 0; i < _loadedZoneTileObjects.Count; i++)
-            {
-                UnityEngine.GameObject tileObject = _loadedZoneTileObjects[i];
+            ClearPendingVisibleTileLoads();
 
-                if (tileObject != null)
+            foreach (AutomapLoadedTile loadedTile in _visibleLoadedTilesByKey.Values)
+            {
+                if (loadedTile == null)
                 {
-                    UnityEngine.Object.Destroy(tileObject);
+                    continue;
+                }
+
+                if (loadedTile.GameObject != null)
+                {
+                    UnityEngine.Object.Destroy(loadedTile.GameObject);
+                }
+
+                if (loadedTile.Texture != null)
+                {
+                    UnityEngine.Object.Destroy(loadedTile.Texture);
                 }
             }
 
-            _loadedZoneTileObjects.Clear();
+            _visibleLoadedTilesByKey.Clear();
 
-            for (int i = 0; i < _loadedZoneTileTextures.Count; i++)
+            _loadedTileCenterZoneId = null;
+            _loadedTileZ = int.MinValue;
+        }
+
+        private bool EnsureTileIndexForCurrentLayer(
+            AutomapZoneCoord currentCoord,
+            int displayZ,
+            string source
+        )
+        {
+            string automapDir = GetAutomapTileDirectory();
+
+            if (!_tileIndexDirty &&
+                _indexedTileDirectory == automapDir &&
+                _indexedWorld == currentCoord.World &&
+                _indexedZ == displayZ)
             {
-                Texture2D texture = _loadedZoneTileTextures[i];
-
-                if (texture != null)
-                {
-                    UnityEngine.Object.Destroy(texture);
-                }
+                return true;
             }
 
-            _loadedZoneTileTextures.Clear();
+            _knownTilesByKey.Clear();
+
+            _indexedTileDirectory = automapDir;
+            _indexedWorld = currentCoord.World;
+            _indexedZ = displayZ;
+            _tileIndexDirty = false;
+
+            if (!Directory.Exists(automapDir))
+            {
+                SetCaptureStatus(source + ": automap tile directory does not exist: " + automapDir);
+                return false;
+            }
+
+            string[] pngFiles = Directory.GetFiles(automapDir, "*.png");
+
+            int indexedCount = 0;
+            int skippedCount = 0;
+
+            for (int i = 0; i < pngFiles.Length; i++)
+            {
+                string path = pngFiles[i];
+                string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+
+                AutomapZoneCoord tileCoord;
+
+                if (!AutomapZoneCoord.TryParse(fileNameWithoutExtension, out tileCoord))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                if (tileCoord.World != currentCoord.World)
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                if (tileCoord.Z != displayZ)
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                AutomapKnownTile knownTile = new AutomapKnownTile();
+                knownTile.Key = tileCoord.ZoneId;
+                knownTile.Path = path;
+                knownTile.Coord = tileCoord;
+
+                _knownTilesByKey[knownTile.Key] = knownTile;
+                indexedCount++;
+            }
+
+            SetCaptureStatus(
+                source +
+                ": indexed " +
+                indexedCount +
+                " tile(s) for " +
+                currentCoord.World +
+                " | " +
+                GetLayerLabel(displayZ) +
+                " | skipped=" +
+                skippedCount
+            );
+
+            return true;
         }
 
         private void LoadCapturedZoneTilesForCurrentLayer(string source)
+        {
+            RefreshVisibleZoneTiles(source);
+        }
+
+        private void RefreshVisibleZoneTiles(string source)
         {
             try
             {
@@ -736,140 +879,156 @@ namespace CoQAutoMap
 
                 if (_layerText != null)
                 {
-                    // GetFormattedLayerName is in AutomapUiBuilder.cs
                     _layerText.text = GetFormattedLayerName(displayZ);
                 }
 
-
-                string automapDir = GetAutomapTileDirectory();
-
-                if (!Directory.Exists(automapDir))
+                if (_loadedTileCenterZoneId != currentCoord.ZoneId ||
+                    _loadedTileZ != displayZ)
                 {
-                    SetCaptureStatus(source + ": automap tile directory does not exist: " + automapDir);
+                    ClearLoadedZoneTiles();
+
+                    _loadedTileCenterZoneId = currentCoord.ZoneId;
+                    _loadedTileZ = displayZ;
+                }
+
+                if (!EnsureTileIndexForCurrentLayer(currentCoord, displayZ, source))
+                {
+                    ApplyMapPlaneTransform();
                     return;
                 }
 
-                ClearLoadedZoneTiles();
+                int minGlobalX;
+                int maxGlobalX;
+                int minGlobalY;
+                int maxGlobalY;
 
-                string[] pngFiles = Directory.GetFiles(automapDir, "*.png");
+                GetVisibleGlobalZoneBounds(
+                    currentCoord,
+                    out minGlobalX,
+                    out maxGlobalX,
+                    out minGlobalY,
+                    out maxGlobalY
+                );
 
-                int loadedCount = 0;
-                int skippedCount = 0;
-                
+                List<string> unloadKeys = new List<string>();
 
-                for (int i = 0; i < pngFiles.Length; i++)
+                foreach (KeyValuePair<string, AutomapLoadedTile> pair in _visibleLoadedTilesByKey)
                 {
-                    string path = pngFiles[i];
-                    string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+                    AutomapLoadedTile loadedTile = pair.Value;
 
-                    AutomapZoneCoord tileCoord;
-
-                    // Tile filenames are saved from Qud zone IDs:
-                    //   World.ParasangX.ParasangY.ZoneX.ZoneY.Z.png
-                    //
-                    // A parasang contains a 3x3 block of local zones, so AutomapZoneCoord converts
-                    // parasang/local coordinates into global zone coordinates:
-                    //
-                    //   GlobalZoneX = ParasangX * 3 + ZoneX
-                    //   GlobalZoneY = ParasangY * 3 + ZoneY
-                    //
-                    // The stitched automap is centered on the player's current zone. Each loaded
-                    // tile is placed by comparing its global zone coordinate to the current zone's
-                    // global coordinate, then multiplying by the rendered PNG size.
-
-                    if (!AutomapZoneCoord.TryParse(fileNameWithoutExtension, out tileCoord))
+                    if (loadedTile == null ||
+                        loadedTile.KnownTile == null ||
+                        !IsKnownTileInBounds(
+                            loadedTile.KnownTile,
+                            minGlobalX,
+                            maxGlobalX,
+                            minGlobalY,
+                            maxGlobalY
+                        ))
                     {
-                        skippedCount++;
-                        continue;
+                        unloadKeys.Add(pair.Key);
                     }
-
-                    if (tileCoord.World != currentCoord.World)
-                    {
-                        skippedCount++;
-                        continue;
-                    }
-
-                    if (tileCoord.Z != displayZ)
-                    {
-                        skippedCount++;
-                        continue;
-                    }
-
-                    byte[] bytes = File.ReadAllBytes(path);
-
-                    Texture2D texture = new Texture2D(2, 2, TextureFormat.ARGB32, false);
-
-                    if (!texture.LoadImage(bytes))
-                    {
-                        UnityEngine.Object.Destroy(texture);
-                        skippedCount++;
-                        continue;
-                    }
-
-                    //texture.filterMode = UnityEngine.FilterMode.Point;
-                    //texture.wrapMode = TextureWrapMode.Clamp;
-
-                    texture.filterMode = UnityEngine.FilterMode.Bilinear;
-                    texture.wrapMode = TextureWrapMode.Clamp;
-
-                    _loadedZoneTileTextures.Add(texture);
-
-                    UnityEngine.GameObject tileObject = new UnityEngine.GameObject(
-                        "ZoneTile_" + fileNameWithoutExtension
-                    );
-
-                    tileObject.transform.SetParent(_zoneTileContainer.transform, false);
-
-                    RectTransform tileRect = tileObject.AddComponent<RectTransform>();
-                    tileRect.anchorMin = new Vector2(0.5f, 0.5f);
-                    tileRect.anchorMax = new Vector2(0.5f, 0.5f);
-                    tileRect.pivot = new Vector2(0.5f, 0.5f);
-
-                    tileRect.sizeDelta = new Vector2(texture.width, texture.height);
-
-                    int relativeZoneX = tileCoord.GlobalZoneX - currentCoord.GlobalZoneX;
-                    int relativeZoneY = tileCoord.GlobalZoneY - currentCoord.GlobalZoneY;
-
-
-                    // Unity UI Y coordinates increase upward, while Qud/world map Y increases
-                    // downward/southward, so relativeZoneY is negated when placing the tile.
-                    tileRect.anchoredPosition = new Vector2(
-                        relativeZoneX * texture.width,
-                        -relativeZoneY * texture.height
-                    );
-
-                    RawImage rawImage = tileObject.AddComponent<RawImage>();
-                    rawImage.texture = texture;
-                    rawImage.color = Color.white;
-                    rawImage.raycastTarget = false;
-
-                    _loadedZoneTileObjects.Add(tileObject);
-
-                    loadedCount++;
                 }
+
+                for (int i = 0; i < unloadKeys.Count; i++)
+                {
+                    UnloadVisibleTile(unloadKeys[i]);
+                }
+
+               ClearPendingVisibleTileLoads();
+
+                List<AutomapKnownTile> visibleMissingTiles =
+                    new List<AutomapKnownTile>();
+
+                int visibleKnownCount = 0;
+
+                foreach (AutomapKnownTile knownTile in _knownTilesByKey.Values)
+                {
+                    if (!IsKnownTileInBounds(
+                        knownTile,
+                        minGlobalX,
+                        maxGlobalX,
+                        minGlobalY,
+                        maxGlobalY
+                    ))
+                    {
+                        continue;
+                    }
+
+                    visibleKnownCount++;
+
+                    if (_visibleLoadedTilesByKey.ContainsKey(knownTile.Key))
+                    {
+                        continue;
+                    }
+
+                    visibleMissingTiles.Add(knownTile);
+                }
+
+                int centerGlobalX;
+                int centerGlobalY;
+
+                GetViewportCenterGlobalZone(
+                    currentCoord,
+                    out centerGlobalX,
+                    out centerGlobalY
+                );
+
+                visibleMissingTiles.Sort(
+                    delegate(AutomapKnownTile a, AutomapKnownTile b)
+                    {
+                        int aScore = GetTileDistanceScore(a, centerGlobalX, centerGlobalY);
+                        int bScore = GetTileDistanceScore(b, centerGlobalX, centerGlobalY);
+
+                        return aScore.CompareTo(bScore);
+                    }
+                );
+
+                for (int i = 0; i < visibleMissingTiles.Count; i++)
+                {
+                    AutomapKnownTile knownTile = visibleMissingTiles[i];
+
+                    _pendingVisibleTileLoads.Enqueue(knownTile);
+                    _pendingVisibleTileLoadKeys.Add(knownTile.Key);
+                }
+
+                int newlyQueuedCount = visibleMissingTiles.Count;
 
                 ApplyMapPlaneTransform();
 
+                // Load the first batch immediately, then the rest over subsequent frames.
+                ProcessPendingVisibleTileLoads();
+
                 SetCaptureStatus(
                     source +
-                    ": loaded " +
-                    loadedCount +
-                    " automap tile(s) for " +
+                    ": visible " +
+                    _visibleLoadedTilesByKey.Count +
+                    "/" +
+                    visibleKnownCount +
+                    " tile(s), indexed " +
+                    _knownTilesByKey.Count +
+                    " | queued=" +
+                    _pendingVisibleTileLoads.Count +
+                    " | " +
                     currentCoord.World +
-                    " | Layer: " +
+                    " | " +
                     GetLayerLabel(displayZ) +
-                    " | Center: " +
-                    currentCoord.ZoneId +
-                    " | skipped=" +
-                    skippedCount
+                    " | Center view: (" +
+                    centerGlobalX +
+                    ", " +
+                    centerGlobalY +
+                    ")" +
+                    " | new queued=" +
+                    newlyQueuedCount +
+                    " | unloaded=" +
+                    unloadKeys.Count
                 );
-
             }
             catch (Exception ex)
             {
                 SetCaptureStatus(
                     source +
-                    ": tile load failed: " +
+                    ": visible tile refresh failed: " +
                     ex.GetType().Name +
                     ": " +
                     ex.Message
@@ -877,7 +1036,377 @@ namespace CoQAutoMap
             }
         }
 
-          private void ApplyMapPlaneTransform()
+        private bool LoadVisibleTile(
+            AutomapKnownTile knownTile,
+            AutomapZoneCoord currentCoord
+        )
+        {
+            if (knownTile == null)
+            {
+                return false;
+            }
+
+            if (_zoneTileContainer == null)
+            {
+                return false;
+            }
+
+            if (_visibleLoadedTilesByKey.ContainsKey(knownTile.Key))
+            {
+                return true;
+            }
+
+            Texture2D texture = null;
+            UnityEngine.GameObject tileObject = null;
+
+            try
+            {
+                byte[] bytes = File.ReadAllBytes(knownTile.Path);
+
+                texture = new Texture2D(2, 2, TextureFormat.ARGB32, false);
+
+                if (!texture.LoadImage(bytes))
+                {
+                    UnityEngine.Object.Destroy(texture);
+                    return false;
+                }
+
+                texture.filterMode = UnityEngine.FilterMode.Bilinear;
+                texture.wrapMode = TextureWrapMode.Clamp;
+
+                tileObject = new UnityEngine.GameObject(
+                    "ZoneTile_" + knownTile.Key
+                );
+
+                tileObject.transform.SetParent(_zoneTileContainer.transform, false);
+
+                RectTransform tileRect = tileObject.AddComponent<RectTransform>();
+                tileRect.anchorMin = new Vector2(0.5f, 0.5f);
+                tileRect.anchorMax = new Vector2(0.5f, 0.5f);
+                tileRect.pivot = new Vector2(0.5f, 0.5f);
+                tileRect.sizeDelta = new Vector2(texture.width, texture.height);
+
+                int relativeZoneX = knownTile.Coord.GlobalZoneX - currentCoord.GlobalZoneX;
+                int relativeZoneY = knownTile.Coord.GlobalZoneY - currentCoord.GlobalZoneY;
+
+                tileRect.anchoredPosition = new Vector2(
+                    relativeZoneX * texture.width,
+                    -relativeZoneY * texture.height
+                );
+
+                RawImage rawImage = tileObject.AddComponent<RawImage>();
+                rawImage.texture = texture;
+                rawImage.color = Color.white;
+                rawImage.raycastTarget = false;
+
+                AutomapLoadedTile loadedTile = new AutomapLoadedTile();
+                loadedTile.KnownTile = knownTile;
+                loadedTile.Texture = texture;
+                loadedTile.GameObject = tileObject;
+
+                _visibleLoadedTilesByKey[knownTile.Key] = loadedTile;
+
+                return true;
+            }
+            catch
+            {
+                if (tileObject != null)
+                {
+                    UnityEngine.Object.Destroy(tileObject);
+                }
+
+                if (texture != null)
+                {
+                    UnityEngine.Object.Destroy(texture);
+                }
+
+                return false;
+            }
+        }
+
+        private void UnloadVisibleTile(string key)
+        {
+            AutomapLoadedTile loadedTile;
+
+            if (!_visibleLoadedTilesByKey.TryGetValue(key, out loadedTile))
+            {
+                return;
+            }
+
+            if (loadedTile != null)
+            {
+                if (loadedTile.GameObject != null)
+                {
+                    UnityEngine.Object.Destroy(loadedTile.GameObject);
+                }
+
+                if (loadedTile.Texture != null)
+                {
+                    UnityEngine.Object.Destroy(loadedTile.Texture);
+                }
+            }
+
+            _visibleLoadedTilesByKey.Remove(key);
+        }
+
+        private void ClearPendingVisibleTileLoads()
+        {
+            _pendingVisibleTileLoads.Clear();
+            _pendingVisibleTileLoadKeys.Clear();
+        }
+
+        private void ProcessPendingVisibleTileLoads()
+        {
+            if (_pendingVisibleTileLoads.Count == 0)
+            {
+                return;
+            }
+
+            if (!_isOpen)
+            {
+                ClearPendingVisibleTileLoads();
+                return;
+            }
+
+            Zone currentZone = The.Player?.GetCurrentZone();
+
+            if (currentZone == null)
+            {
+                ClearPendingVisibleTileLoads();
+                return;
+            }
+
+            AutomapZoneCoord currentCoord;
+
+            if (!AutomapZoneCoord.TryParse(currentZone.ZoneID, out currentCoord))
+            {
+                ClearPendingVisibleTileLoads();
+                return;
+            }
+
+            EnsureDisplayZInitialized();
+
+            int minGlobalX;
+            int maxGlobalX;
+            int minGlobalY;
+            int maxGlobalY;
+
+            GetVisibleGlobalZoneBounds(
+                currentCoord,
+                out minGlobalX,
+                out maxGlobalX,
+                out minGlobalY,
+                out maxGlobalY
+            );
+
+            int loadedThisFrame = 0;
+
+            while (_pendingVisibleTileLoads.Count > 0 &&
+                loadedThisFrame < MaxTileLoadsPerFrame)
+            {
+                AutomapKnownTile knownTile = _pendingVisibleTileLoads.Dequeue();
+
+                if (knownTile == null)
+                {
+                    continue;
+                }
+
+                _pendingVisibleTileLoadKeys.Remove(knownTile.Key);
+
+                if (_visibleLoadedTilesByKey.ContainsKey(knownTile.Key))
+                {
+                    continue;
+                }
+
+                if (knownTile.Coord.World != currentCoord.World)
+                {
+                    continue;
+                }
+
+                if (knownTile.Coord.Z != _displayZ)
+                {
+                    continue;
+                }
+
+                if (!IsKnownTileInBounds(
+                    knownTile,
+                    minGlobalX,
+                    maxGlobalX,
+                    minGlobalY,
+                    maxGlobalY
+                ))
+                {
+                    continue;
+                }
+
+                if (LoadVisibleTile(knownTile, currentCoord))
+                {
+                    loadedThisFrame++;
+                }
+            }
+
+            if (loadedThisFrame > 0)
+            {
+                ApplyMapPlaneTransform();
+
+                SetCaptureStatus(
+                    "Loading atlas tiles: +" +
+                    loadedThisFrame +
+                    " this frame, loaded " +
+                    _visibleLoadedTilesByKey.Count +
+                    ", queued " +
+                    _pendingVisibleTileLoads.Count +
+                    " | " +
+                    GetLayerLabel(_displayZ)
+                );
+            }
+        }
+
+        private int GetTileDistanceScore(
+            AutomapKnownTile knownTile,
+            int centerGlobalX,
+            int centerGlobalY
+        )
+        {
+            if (knownTile == null)
+            {
+                return int.MaxValue;
+            }
+
+            int dx = knownTile.Coord.GlobalZoneX - centerGlobalX;
+            int dy = knownTile.Coord.GlobalZoneY - centerGlobalY;
+
+            return dx * dx + dy * dy;
+        }
+
+        private bool IsKnownTileInBounds(
+            AutomapKnownTile knownTile,
+            int minGlobalX,
+            int maxGlobalX,
+            int minGlobalY,
+            int maxGlobalY
+        )
+        {
+            if (knownTile == null)
+            {
+                return false;
+            }
+
+            int globalX = knownTile.Coord.GlobalZoneX;
+            int globalY = knownTile.Coord.GlobalZoneY;
+
+            return
+                globalX >= minGlobalX &&
+                globalX <= maxGlobalX &&
+                globalY >= minGlobalY &&
+                globalY <= maxGlobalY;
+        }
+
+        private int GetTileLoadMarginZones()
+        {
+            if (_zoom < NoMarginZoomThreshold)
+            {
+                return 0;
+            }
+
+            return NormalTileLoadMarginZones;
+        }
+
+        private void GetViewportCenterGlobalZone(
+            AutomapZoneCoord currentCoord,
+            out int centerGlobalX,
+            out int centerGlobalY
+        )
+        {
+            float zoom = _zoom;
+
+            if (zoom <= 0f)
+            {
+                zoom = 1f;
+            }
+
+            // Map-space pixel coordinate currently under the center of the viewport.
+            // The viewport center is local point zero; mapPlaneOffset moves the map under it.
+            float centerMapPixelX = -_mapPlaneOffset.x / zoom;
+            float centerMapPixelY = -_mapPlaneOffset.y / zoom;
+
+            int relativeZoneX =
+                Mathf.RoundToInt(centerMapPixelX / AutomapTilePixelWidth);
+
+            // Tile placement negates world Y:
+            // tile local Y = -relativeZoneY * tileHeight.
+            int relativeZoneY =
+                Mathf.RoundToInt(-centerMapPixelY / AutomapTilePixelHeight);
+
+            centerGlobalX = currentCoord.GlobalZoneX + relativeZoneX;
+            centerGlobalY = currentCoord.GlobalZoneY + relativeZoneY;
+        }
+
+        private void GetVisibleGlobalZoneBounds(
+            AutomapZoneCoord currentCoord,
+            out int minGlobalX,
+            out int maxGlobalX,
+            out int minGlobalY,
+            out int maxGlobalY
+        )
+        {
+            float viewportWidth =
+                _mapViewportRect != null && _mapViewportRect.rect.width > 0f
+                    ? _mapViewportRect.rect.width
+                    : Screen.width * 0.93f;
+
+            float viewportHeight =
+                _mapViewportRect != null && _mapViewportRect.rect.height > 0f
+                    ? _mapViewportRect.rect.height
+                    : Screen.height * 0.77f;
+
+            float zoom = _zoom;
+
+            if (zoom <= 0f)
+            {
+                zoom = 1f;
+            }
+
+            float visibleMinX =
+                (-viewportWidth / 2f - _mapPlaneOffset.x) / zoom;
+
+            float visibleMaxX =
+                (viewportWidth / 2f - _mapPlaneOffset.x) / zoom;
+
+            float visibleMinY =
+                (-viewportHeight / 2f - _mapPlaneOffset.y) / zoom;
+
+            float visibleMaxY =
+                (viewportHeight / 2f - _mapPlaneOffset.y) / zoom;
+
+            int margin = GetTileLoadMarginZones();
+
+            int minRelativeX =
+                Mathf.FloorToInt(visibleMinX / AutomapTilePixelWidth) -
+                margin;
+
+            int maxRelativeX =
+                Mathf.FloorToInt(visibleMaxX / AutomapTilePixelWidth) +
+                margin;
+
+            // Tile placement negates relative world Y:
+            // tile local Y = -relativeZoneY * tileHeight.
+            int minRelativeY =
+                Mathf.FloorToInt((-visibleMaxY) / AutomapTilePixelHeight) -
+                margin;
+
+            int maxRelativeY =
+                Mathf.FloorToInt((-visibleMinY) / AutomapTilePixelHeight) +
+                margin;
+
+            minGlobalX = currentCoord.GlobalZoneX + minRelativeX;
+            maxGlobalX = currentCoord.GlobalZoneX + maxRelativeX;
+
+            minGlobalY = currentCoord.GlobalZoneY + minRelativeY;
+            maxGlobalY = currentCoord.GlobalZoneY + maxRelativeY;
+        }
+
+        private void ApplyMapPlaneTransform()
         {
             if (_mapPlane == null)
             {
@@ -896,7 +1425,6 @@ namespace CoQAutoMap
 
             if (_layerText != null)
             {
-                //GetFormattedLayerName is in AutomapUiBuilder.cs
                 _layerText.text = GetFormattedLayerName(_displayZ);
             }
 
@@ -915,6 +1443,8 @@ namespace CoQAutoMap
                     " | Source: " + source;
             }
         }
+        
+        
 
         private static string Safe(string value)
         {

@@ -113,3 +113,6 @@ Critical readme update
 
 - 30: 7/18/26 ~11:59pm
 smaller preview.png to try and fix workshop error
+
+- 30: 7/19/26 ~6:16pm
+v1.0.1 Load atlas tiles progressively
