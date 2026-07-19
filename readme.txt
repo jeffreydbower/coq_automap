@@ -50,6 +50,10 @@ You can delete the Automap folder, or just the tiles folder, to remove Atlas’s
 [h2]Development[/h2]
 [url=https://github.com/jeffreydbower/coq_automap]View the source code on GitHub[/url]
 
+[h2]Inspired by Caves of Qud World Map Web Viewer by kernelmethod[/h2]
+
+[url=https://kernelmethod.org/notes/qud_worldmap/]Caves of Qud World Map Web Viewer[/url]
+
 [h2]Updates[/h2]
 v1.0.0
 - Initial Release

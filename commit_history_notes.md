@@ -107,3 +107,6 @@ Created readme.txt, preview.png, and updated manifest.json for release
 
 - 28: 7/18/26 ~11:16pm
 Final updates for release.
+
+- 29: 7/18/26 ~11:26pm
+Critical readme update
