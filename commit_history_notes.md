@@ -110,3 +110,6 @@ Final updates for release.
 
 - 29: 7/18/26 ~11:26pm
 Critical readme update
+
+- 30: 7/18/26 ~11:59pm
+smaller preview.png to try and fix workshop error
