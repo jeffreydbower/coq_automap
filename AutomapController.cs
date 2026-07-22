@@ -189,7 +189,6 @@ namespace CoQAutoMap
                 DontDestroyOnLoad(controllerObject);
 
                _instance = controllerObject.AddComponent<AutomapController>();
-               
 
                 AutomapInputGate.Install();
 
@@ -269,6 +268,8 @@ namespace CoQAutoMap
         private string _capturePath;
         private string _captureError;
         private DateTime _captureStartTime;
+
+        private string _thumbnailRepairCheckedSaveKey;
 
         private void StartCaptureCurrentZoneImage(string source)
         {
@@ -549,6 +550,8 @@ namespace CoQAutoMap
 
                         Directory.CreateDirectory(Path.GetDirectoryName(savePath));
                         File.WriteAllBytes(savePath, pngBytes);
+
+                        GenerateThumbnailForFullTile(savePath);
                     }
                     catch (Exception ex)
                     {
@@ -572,7 +575,7 @@ namespace CoQAutoMap
             }
         }
 
-        // Zone capture finishes from a queued UI task because Unity texture work has to
+        // Zone capture finishes from a queued UI task because Unity texture work has to//
         // happen on the UI/main thread. This method checks each frame whether the queued
         // capture is done, then reloads the stitched map if the visible automap requested it.
         private void PollZoneCapture()
@@ -671,9 +674,613 @@ namespace CoQAutoMap
             return value;
         }
 
+        private bool CurrentZoneTileExists()
+        {
+            try
+            {
+                Zone zone = The.Player?.GetCurrentZone();
+
+                if (zone == null)
+                {
+                    return false;
+                }
+
+                string zoneId = zone.ZoneID;
+
+                if (string.IsNullOrEmpty(zoneId))
+                {
+                    return false;
+                }
+
+                AutomapZoneCoord coord;
+
+                if (!AutomapZoneCoord.TryParse(zoneId, out coord))
+                {
+                    return false;
+                }
+
+                string automapDir = GetAutomapTileDirectory();
+
+                if (string.IsNullOrEmpty(automapDir))
+                {
+                    return false;
+                }
+
+                string safeZoneId = MakeSafeFileName(zoneId);
+                string tilePath = Path.Combine(automapDir, safeZoneId + ".png");
+
+                return File.Exists(tilePath);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+       private static bool IsThumbnailPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+
+            string fileName = Path.GetFileName(path);
+
+            if (string.IsNullOrEmpty(fileName))
+            {
+                return false;
+            }
+
+            return fileName.StartsWith(
+                AutomapThumbPrefix,
+                StringComparison.OrdinalIgnoreCase
+            );
+        }
+
+        private static string GetThumbnailPath(string fullTilePath)
+        {
+            if (string.IsNullOrEmpty(fullTilePath))
+            {
+                return "";
+            }
+
+            if (IsThumbnailPath(fullTilePath))
+            {
+                return fullTilePath;
+            }
+
+            string directory = Path.GetDirectoryName(fullTilePath);
+            string fileName = Path.GetFileName(fullTilePath);
+
+            if (string.IsNullOrEmpty(directory) ||
+                string.IsNullOrEmpty(fileName))
+            {
+                return "";
+            }
+
+            return Path.Combine(
+                directory,
+                AutomapThumbPrefix + fileName
+            );
+        }
+
+        private static bool IsThumbnailFresh(string fullTilePath)
+        {
+            if (string.IsNullOrEmpty(fullTilePath))
+            {
+                return false;
+            }
+
+            if (!File.Exists(fullTilePath))
+            {
+                return false;
+            }
+
+            string thumbPath = GetThumbnailPath(fullTilePath);
+
+            if (string.IsNullOrEmpty(thumbPath))
+            {
+                return false;
+            }
+
+            if (!File.Exists(thumbPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                DateTime fullWriteTime = File.GetLastWriteTimeUtc(fullTilePath);
+                DateTime thumbWriteTime = File.GetLastWriteTimeUtc(thumbPath);
+
+                return thumbWriteTime >= fullWriteTime;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool GenerateThumbnailForFullTile(string fullTilePath)
+        {
+            if (string.IsNullOrEmpty(fullTilePath))
+            {
+                return false;
+            }
+
+            if (IsThumbnailPath(fullTilePath))
+            {
+                return false;
+            }
+
+            AutomapZoneCoord ignoredCoord;
+
+            if (!TryGetFullTileCoordFromPath(fullTilePath, out ignoredCoord))
+            {
+                return false;
+            }
+
+            if (!File.Exists(fullTilePath))
+            {
+                return false;
+            }
+
+            string thumbPath = GetThumbnailPath(fullTilePath);
+
+            if (string.IsNullOrEmpty(thumbPath))
+            {
+                return false;
+            }
+
+            Texture2D fullTexture = null;
+            Texture2D thumbTexture = null;
+
+            try
+            {
+                byte[] fullBytes = File.ReadAllBytes(fullTilePath);
+
+                fullTexture = new Texture2D(
+                    2,
+                    2,
+                    TextureFormat.ARGB32,
+                    mipChain: false
+                );
+
+                if (!fullTexture.LoadImage(fullBytes))
+                {
+                    return false;
+                }
+
+                fullTexture.filterMode = UnityEngine.FilterMode.Bilinear;
+                fullTexture.wrapMode = TextureWrapMode.Clamp;
+
+                thumbTexture = new Texture2D(
+                    AutomapThumbPixelWidth,
+                    AutomapThumbPixelHeight,
+                    TextureFormat.ARGB32,
+                    mipChain: false
+                );
+
+                UnityEngine.Color[] thumbPixels =
+                    new UnityEngine.Color[AutomapThumbPixelWidth * AutomapThumbPixelHeight];
+
+                for (int y = 0; y < AutomapThumbPixelHeight; y++)
+                {
+                    for (int x = 0; x < AutomapThumbPixelWidth; x++)
+                    {
+                        float u =
+                            (x + 0.5f) /
+                            AutomapThumbPixelWidth;
+
+                        float v =
+                            (y + 0.5f) /
+                            AutomapThumbPixelHeight;
+
+                        thumbPixels[x + y * AutomapThumbPixelWidth] =
+                            fullTexture.GetPixelBilinear(u, v);
+                    }
+                }
+
+                thumbTexture.SetPixels(thumbPixels);
+                thumbTexture.Apply(updateMipmaps: false);
+
+                byte[] thumbBytes = thumbTexture.EncodeToPNG();
+
+                Directory.CreateDirectory(Path.GetDirectoryName(thumbPath));
+                File.WriteAllBytes(thumbPath, thumbBytes);
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                if (fullTexture != null)
+                {
+                    UnityEngine.Object.Destroy(fullTexture);
+                }
+
+                if (thumbTexture != null)
+                {
+                    UnityEngine.Object.Destroy(thumbTexture);
+                }
+            }
+        }
+
+        private bool RepairThumbnailCache(string source)
+        {
+            try
+            {
+                string automapDir = GetAutomapTileDirectory();
+
+                if (string.IsNullOrEmpty(automapDir))
+                {
+                    return false;
+                }
+
+                if (!Directory.Exists(automapDir))
+                {
+                    return true;
+                }
+
+                string[] pngFiles = Directory.GetFiles(automapDir, "*.png");
+
+                int checkedCount = 0;
+                int repairedCount = 0;
+                int skippedCount = 0;
+                int failedCount = 0;
+
+                for (int i = 0; i < pngFiles.Length; i++)
+                {
+                    string path = pngFiles[i];
+
+                    AutomapZoneCoord ignoredCoord;
+
+                    if (!TryGetFullTileCoordFromPath(path, out ignoredCoord))
+                    {
+                        skippedCount++;
+                        continue;
+                    }
+
+                    checkedCount++;
+
+                    if (IsThumbnailFresh(path))
+                    {
+                        continue;
+                    }
+
+                    if (GenerateThumbnailForFullTile(path))
+                    {
+                        repairedCount++;
+                    }
+                    else
+                    {
+                        failedCount++;
+                    }
+                }
+
+                if (repairedCount > 0)
+                {
+                    MarkTileIndexDirty();
+                }
+
+                SetCaptureStatus(
+                    source +
+                    ": thumbnail cache checked " +
+                    checkedCount +
+                    " full tile(s), repaired " +
+                    repairedCount +
+                    ", failed " +
+                    failedCount +
+                    ", skipped " +
+                    skippedCount +
+                    " non-full-tile PNG(s)"
+                );
+
+                return failedCount == 0;
+            }
+            catch (Exception ex)
+            {
+                SetCaptureStatus(
+                    source +
+                    ": thumbnail cache repair failed: " +
+                    ex.GetType().Name +
+                    ": " +
+                    ex.Message
+                );
+
+                return false;
+            }
+        }
+
+        private bool ThumbnailCacheNeedsRepair()
+        {
+            try
+            {
+                string automapDir = GetAutomapTileDirectory();
+
+                if (string.IsNullOrEmpty(automapDir))
+                {
+                    return false;
+                }
+
+                if (!Directory.Exists(automapDir))
+                {
+                    return false;
+                }
+
+                string[] pngFiles = Directory.GetFiles(automapDir, "*.png");
+
+                for (int i = 0; i < pngFiles.Length; i++)
+                {
+                    string path = pngFiles[i];
+
+                    AutomapZoneCoord ignoredCoord;
+
+                    if (!TryGetFullTileCoordFromPath(path, out ignoredCoord))
+                    {
+                        continue;
+                    }
+
+                    if (!IsThumbnailFresh(path))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private string GetThumbnailRepairSessionSaveKey()
+        {
+            try
+            {
+                if (The.Game == null)
+                {
+                    return null;
+                }
+
+                string tileDir = GetAutomapTileDirectory();
+
+                if (string.IsNullOrEmpty(tileDir))
+                {
+                    return null;
+                }
+
+                return tileDir;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private bool RepairThumbnailCacheIfNeededThisSession(string source)
+        {
+            string saveKey = GetThumbnailRepairSessionSaveKey();
+
+            if (string.IsNullOrEmpty(saveKey))
+            {
+                return false;
+            }
+
+            if (string.Equals(
+                _thumbnailRepairCheckedSaveKey,
+                saveKey,
+                StringComparison.OrdinalIgnoreCase
+            ))
+            {
+                return false;
+            }
+
+            _thumbnailRepairCheckedSaveKey = saveKey;
+
+            if (!ThumbnailCacheNeedsRepair())
+            {
+                return false;
+            }
+
+            int checkedCount;
+            int repairedCount;
+            int failedCount;
+            int skippedCount;
+
+            bool repaired = RepairThumbnailCache(
+                source,
+                out checkedCount,
+                out repairedCount,
+                out failedCount,
+                out skippedCount
+            );
+
+            if (!repaired)
+            {
+                _thumbnailRepairCheckedSaveKey = null;
+            }
+
+            string message =
+                "Atlas of Qud prepared thumbnail map images for this save.\n\n" +
+                "Checked " +
+                checkedCount +
+                " full tile(s).\n" +
+                "Created or updated " +
+                repairedCount +
+                " thumbnail tile(s).\n";
+
+            if (skippedCount > 0)
+            {
+                message +=
+                    "Skipped " +
+                    skippedCount +
+                    " non-full-tile PNG(s).\n";
+            }
+
+            if (failedCount > 0)
+            {
+                message +=
+                    "\n" +
+                    failedCount +
+                    " thumbnail tile(s) could not be prepared. Atlas will try again next time.";
+            }
+            else
+            {
+                message +=
+                    "\nOpen Atlas again to continue.";
+            }
+
+            Popup.Show(message);
+
+            return true;
+        }
+
+        private static bool TryGetFullTileCoordFromPath(
+            string path,
+            out AutomapZoneCoord coord
+        )
+        {
+            coord = default(AutomapZoneCoord);
+
+            if (string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+
+            if (IsThumbnailPath(path))
+            {
+                return false;
+            }
+
+            if (!string.Equals(
+                Path.GetExtension(path),
+                ".png",
+                StringComparison.OrdinalIgnoreCase
+            ))
+            {
+                return false;
+            }
+
+            string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+
+            if (string.IsNullOrEmpty(fileNameWithoutExtension))
+            {
+                return false;
+            }
+
+            return AutomapZoneCoord.TryParse(fileNameWithoutExtension, out coord);
+        }
+
+        private bool RepairThumbnailCache(
+            string source,
+            out int checkedCount,
+            out int repairedCount,
+            out int failedCount,
+            out int skippedCount
+        )
+        {
+            checkedCount = 0;
+            repairedCount = 0;
+            failedCount = 0;
+            skippedCount = 0;
+
+            try
+            {
+                string automapDir = GetAutomapTileDirectory();
+
+                if (string.IsNullOrEmpty(automapDir))
+                {
+                    return false;
+                }
+
+                if (!Directory.Exists(automapDir))
+                {
+                    return true;
+                }
+
+                string[] pngFiles = Directory.GetFiles(automapDir, "*.png");
+
+                for (int i = 0; i < pngFiles.Length; i++)
+                {
+                    string path = pngFiles[i];
+
+                    AutomapZoneCoord ignoredCoord;
+
+                    if (!TryGetFullTileCoordFromPath(path, out ignoredCoord))
+                    {
+                        skippedCount++;
+                        continue;
+                    }
+
+                    checkedCount++;
+
+                    if (IsThumbnailFresh(path))
+                    {
+                        continue;
+                    }
+
+                    if (GenerateThumbnailForFullTile(path))
+                    {
+                        repairedCount++;
+                    }
+                    else
+                    {
+                        failedCount++;
+                    }
+                }
+
+                if (repairedCount > 0)
+                {
+                    MarkTileIndexDirty();
+                }
+
+                SetCaptureStatus(
+                    source +
+                    ": thumbnail cache checked " +
+                    checkedCount +
+                    " full tile(s), repaired " +
+                    repairedCount +
+                    ", failed " +
+                    failedCount +
+                    ", skipped " +
+                    skippedCount +
+                    " non-full-tile PNG(s)"
+                );
+
+                return failedCount == 0;
+            }
+            catch (Exception ex)
+            {
+                SetCaptureStatus(
+                    source +
+                    ": thumbnail cache repair failed: " +
+                    ex.GetType().Name +
+                    ": " +
+                    ex.Message
+                );
+
+                return false;
+            }
+        }
+
+        public static void ResetThumbnailRepairSession(string source)
+        {
+            if (_instance == null)
+            {
+                return;
+            }
+
+            _instance._thumbnailRepairCheckedSaveKey = null;
+        }
+
         //#####################################################    
         // Loaded PNG tile display:
-        // lightweight filename index + lazy visible tile loading
+        // lightweight filename index + progressive center-priority layer loading
         //#####################################################
 
         private sealed class AutomapKnownTile
@@ -693,10 +1300,10 @@ namespace CoQAutoMap
         private const int AutomapTilePixelWidth = 1280;
         private const int AutomapTilePixelHeight = 600;
 
-        // One-zone preload margin prevents edge pop-in at close/medium zoom.
-        // At very far zoom the viewport already covers many zones, so the margin is disabled.
-        private const int NormalTileLoadMarginZones = 1;
-        private const float NoMarginZoomThreshold = 0.10f;
+        private const int AutomapThumbPixelWidth = 192;
+        private const int AutomapThumbPixelHeight = 90;
+        private const string AutomapThumbPrefix = "thumb.";
+
 
         // Number of PNG tiles to decode/create per frame during progressive loading.
         // 24 was chosen from testing on an older (circa 2015) i5-6600K / GTX 970 machine:
@@ -733,25 +1340,12 @@ namespace CoQAutoMap
         {
             ClearPendingVisibleTileLoads();
 
-            foreach (AutomapLoadedTile loadedTile in _visibleLoadedTilesByKey.Values)
+            List<string> loadedKeys = new List<string>(_visibleLoadedTilesByKey.Keys);
+
+            for (int i = 0; i < loadedKeys.Count; i++)
             {
-                if (loadedTile == null)
-                {
-                    continue;
-                }
-
-                if (loadedTile.GameObject != null)
-                {
-                    UnityEngine.Object.Destroy(loadedTile.GameObject);
-                }
-
-                if (loadedTile.Texture != null)
-                {
-                    UnityEngine.Object.Destroy(loadedTile.Texture);
-                }
+                UnloadVisibleTile(loadedKeys[i]);
             }
-
-            _visibleLoadedTilesByKey.Clear();
 
             _loadedTileCenterZoneId = null;
             _loadedTileZ = int.MinValue;
@@ -794,6 +1388,13 @@ namespace CoQAutoMap
             for (int i = 0; i < pngFiles.Length; i++)
             {
                 string path = pngFiles[i];
+
+                if (IsThumbnailPath(path))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
                 string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
 
                 AutomapZoneCoord tileCoord;
@@ -844,6 +1445,36 @@ namespace CoQAutoMap
         {
             RefreshVisibleZoneTiles(source);
         }
+
+        private void LoadAtlasLayerWithCurrentZonePriority(string source)
+        {
+            bool currentTileAlreadyExists = CurrentZoneTileExists();
+            bool captureWasAlreadyPending = _capturePending;
+
+            StartCaptureCurrentZoneImage(source);
+
+            bool waitingForCurrentZoneCapture =
+                !currentTileAlreadyExists &&
+                !captureWasAlreadyPending &&
+                _capturePending &&
+                _captureLoadWhenComplete;
+
+            if (waitingForCurrentZoneCapture)
+            {
+                ApplyMapPlaneTransform();
+
+                SetCaptureStatus(
+                    source +
+                    ": waiting for current zone capture before loading atlas layer."
+                );
+
+                return;
+            }
+
+            LoadCapturedZoneTilesForCurrentLayer(source);
+        }
+
+
 
         private void RefreshVisibleZoneTiles(string source)
         {
@@ -897,72 +1528,24 @@ namespace CoQAutoMap
                     return;
                 }
 
-                int minGlobalX;
-                int maxGlobalX;
-                int minGlobalY;
-                int maxGlobalY;
+                ClearPendingVisibleTileLoads();
 
-                GetVisibleGlobalZoneBounds(
-                    currentCoord,
-                    out minGlobalX,
-                    out maxGlobalX,
-                    out minGlobalY,
-                    out maxGlobalY
-                );
-
-                List<string> unloadKeys = new List<string>();
-
-                foreach (KeyValuePair<string, AutomapLoadedTile> pair in _visibleLoadedTilesByKey)
-                {
-                    AutomapLoadedTile loadedTile = pair.Value;
-
-                    if (loadedTile == null ||
-                        loadedTile.KnownTile == null ||
-                        !IsKnownTileInBounds(
-                            loadedTile.KnownTile,
-                            minGlobalX,
-                            maxGlobalX,
-                            minGlobalY,
-                            maxGlobalY
-                        ))
-                    {
-                        unloadKeys.Add(pair.Key);
-                    }
-                }
-
-                for (int i = 0; i < unloadKeys.Count; i++)
-                {
-                    UnloadVisibleTile(unloadKeys[i]);
-                }
-
-               ClearPendingVisibleTileLoads();
-
-                List<AutomapKnownTile> visibleMissingTiles =
+                List<AutomapKnownTile> missingTiles =
                     new List<AutomapKnownTile>();
-
-                int visibleKnownCount = 0;
 
                 foreach (AutomapKnownTile knownTile in _knownTilesByKey.Values)
                 {
-                    if (!IsKnownTileInBounds(
-                        knownTile,
-                        minGlobalX,
-                        maxGlobalX,
-                        minGlobalY,
-                        maxGlobalY
-                    ))
+                    if (knownTile == null)
                     {
                         continue;
                     }
-
-                    visibleKnownCount++;
 
                     if (_visibleLoadedTilesByKey.ContainsKey(knownTile.Key))
                     {
                         continue;
                     }
 
-                    visibleMissingTiles.Add(knownTile);
+                    missingTiles.Add(knownTile);
                 }
 
                 int centerGlobalX;
@@ -974,25 +1557,36 @@ namespace CoQAutoMap
                     out centerGlobalY
                 );
 
-                visibleMissingTiles.Sort(
+                missingTiles.Sort(
                     delegate(AutomapKnownTile a, AutomapKnownTile b)
                     {
-                        int aScore = GetTileDistanceScore(a, centerGlobalX, centerGlobalY);
-                        int bScore = GetTileDistanceScore(b, centerGlobalX, centerGlobalY);
+                        int aScore = GetTileLoadPriorityScore(
+                            a,
+                            currentCoord,
+                            centerGlobalX,
+                            centerGlobalY
+                        );
+
+                        int bScore = GetTileLoadPriorityScore(
+                            b,
+                            currentCoord,
+                            centerGlobalX,
+                            centerGlobalY
+                        );
 
                         return aScore.CompareTo(bScore);
                     }
                 );
 
-                for (int i = 0; i < visibleMissingTiles.Count; i++)
+                for (int i = 0; i < missingTiles.Count; i++)
                 {
-                    AutomapKnownTile knownTile = visibleMissingTiles[i];
+                    AutomapKnownTile knownTile = missingTiles[i];
 
                     _pendingVisibleTileLoads.Enqueue(knownTile);
                     _pendingVisibleTileLoadKeys.Add(knownTile.Key);
                 }
 
-                int newlyQueuedCount = visibleMissingTiles.Count;
+                int newlyQueuedCount = missingTiles.Count;
 
                 ApplyMapPlaneTransform();
 
@@ -1001,13 +1595,11 @@ namespace CoQAutoMap
 
                 SetCaptureStatus(
                     source +
-                    ": visible " +
+                    ": loaded " +
                     _visibleLoadedTilesByKey.Count +
                     "/" +
-                    visibleKnownCount +
-                    " tile(s), indexed " +
                     _knownTilesByKey.Count +
-                    " | queued=" +
+                    " tile(s), queued=" +
                     _pendingVisibleTileLoads.Count +
                     " | " +
                     currentCoord.World +
@@ -1019,9 +1611,7 @@ namespace CoQAutoMap
                     centerGlobalY +
                     ")" +
                     " | new queued=" +
-                    newlyQueuedCount +
-                    " | unloaded=" +
-                    unloadKeys.Count
+                    newlyQueuedCount
                 );
             }
             catch (Exception ex)
@@ -1186,19 +1776,6 @@ namespace CoQAutoMap
 
             EnsureDisplayZInitialized();
 
-            int minGlobalX;
-            int maxGlobalX;
-            int minGlobalY;
-            int maxGlobalY;
-
-            GetVisibleGlobalZoneBounds(
-                currentCoord,
-                out minGlobalX,
-                out maxGlobalX,
-                out minGlobalY,
-                out maxGlobalY
-            );
-
             int loadedThisFrame = 0;
 
             while (_pendingVisibleTileLoads.Count > 0 &&
@@ -1224,17 +1801,6 @@ namespace CoQAutoMap
                 }
 
                 if (knownTile.Coord.Z != _displayZ)
-                {
-                    continue;
-                }
-
-                if (!IsKnownTileInBounds(
-                    knownTile,
-                    minGlobalX,
-                    maxGlobalX,
-                    minGlobalY,
-                    maxGlobalY
-                ))
                 {
                     continue;
                 }
@@ -1279,39 +1845,6 @@ namespace CoQAutoMap
             return dx * dx + dy * dy;
         }
 
-        private bool IsKnownTileInBounds(
-            AutomapKnownTile knownTile,
-            int minGlobalX,
-            int maxGlobalX,
-            int minGlobalY,
-            int maxGlobalY
-        )
-        {
-            if (knownTile == null)
-            {
-                return false;
-            }
-
-            int globalX = knownTile.Coord.GlobalZoneX;
-            int globalY = knownTile.Coord.GlobalZoneY;
-
-            return
-                globalX >= minGlobalX &&
-                globalX <= maxGlobalX &&
-                globalY >= minGlobalY &&
-                globalY <= maxGlobalY;
-        }
-
-        private int GetTileLoadMarginZones()
-        {
-            if (_zoom < NoMarginZoomThreshold)
-            {
-                return 0;
-            }
-
-            return NormalTileLoadMarginZones;
-        }
-
         private void GetViewportCenterGlobalZone(
             AutomapZoneCoord currentCoord,
             out int centerGlobalX,
@@ -1342,68 +1875,28 @@ namespace CoQAutoMap
             centerGlobalY = currentCoord.GlobalZoneY + relativeZoneY;
         }
 
-        private void GetVisibleGlobalZoneBounds(
+        private int GetTileLoadPriorityScore(
+            AutomapKnownTile knownTile,
             AutomapZoneCoord currentCoord,
-            out int minGlobalX,
-            out int maxGlobalX,
-            out int minGlobalY,
-            out int maxGlobalY
+            int centerGlobalX,
+            int centerGlobalY
         )
         {
-            float viewportWidth =
-                _mapViewportRect != null && _mapViewportRect.rect.width > 0f
-                    ? _mapViewportRect.rect.width
-                    : Screen.width * 0.93f;
-
-            float viewportHeight =
-                _mapViewportRect != null && _mapViewportRect.rect.height > 0f
-                    ? _mapViewportRect.rect.height
-                    : Screen.height * 0.77f;
-
-            float zoom = _zoom;
-
-            if (zoom <= 0f)
+            if (knownTile == null)
             {
-                zoom = 1f;
+                return int.MaxValue;
             }
 
-            float visibleMinX =
-                (-viewportWidth / 2f - _mapPlaneOffset.x) / zoom;
+            if (knownTile.Key == currentCoord.ZoneId)
+            {
+                return 0;
+            }
 
-            float visibleMaxX =
-                (viewportWidth / 2f - _mapPlaneOffset.x) / zoom;
-
-            float visibleMinY =
-                (-viewportHeight / 2f - _mapPlaneOffset.y) / zoom;
-
-            float visibleMaxY =
-                (viewportHeight / 2f - _mapPlaneOffset.y) / zoom;
-
-            int margin = GetTileLoadMarginZones();
-
-            int minRelativeX =
-                Mathf.FloorToInt(visibleMinX / AutomapTilePixelWidth) -
-                margin;
-
-            int maxRelativeX =
-                Mathf.FloorToInt(visibleMaxX / AutomapTilePixelWidth) +
-                margin;
-
-            // Tile placement negates relative world Y:
-            // tile local Y = -relativeZoneY * tileHeight.
-            int minRelativeY =
-                Mathf.FloorToInt((-visibleMaxY) / AutomapTilePixelHeight) -
-                margin;
-
-            int maxRelativeY =
-                Mathf.FloorToInt((-visibleMinY) / AutomapTilePixelHeight) +
-                margin;
-
-            minGlobalX = currentCoord.GlobalZoneX + minRelativeX;
-            maxGlobalX = currentCoord.GlobalZoneX + maxRelativeX;
-
-            minGlobalY = currentCoord.GlobalZoneY + minRelativeY;
-            maxGlobalY = currentCoord.GlobalZoneY + maxRelativeY;
+            return 1 + GetTileDistanceScore(
+                knownTile,
+                centerGlobalX,
+                centerGlobalY
+            );
         }
 
         private void ApplyMapPlaneTransform()

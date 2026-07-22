@@ -16,6 +16,7 @@ namespace CoQAutoMap
         public static void AfterGameLoaded()
         {
             AutomapController.EnsureInstalled("CallAfterGameLoaded");
+            AutomapController.ResetThumbnailRepairSession("CallAfterGameLoaded");
         }
     }
 }

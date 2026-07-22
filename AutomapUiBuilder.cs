@@ -14,6 +14,8 @@ using NavigationContext = XRL.UI.Framework.NavigationContext;
 using NavigationController = XRL.UI.Framework.NavigationController;
 using FrameworkEvent = XRL.UI.Framework.Event;
 
+//
+
 namespace CoQAutoMap
 {
     public sealed partial class AutomapController
@@ -40,6 +42,11 @@ namespace CoQAutoMap
             }
 
             if (_isOpen)
+            {
+                return;
+            }
+
+            if (RepairThumbnailCacheIfNeededThisSession(source))
             {
                 return;
             }
@@ -79,9 +86,7 @@ namespace CoQAutoMap
 
             CenterViewOnPlayer();
 
-            LoadCapturedZoneTilesForCurrentLayer(source);
-
-            StartCaptureCurrentZoneImage(source);
+            LoadAtlasLayerWithCurrentZonePriority(source);
         }
         catch (Exception ex)
         {

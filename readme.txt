@@ -1,4 +1,4 @@
-[h1]Atlas of Qud — v1.0.1[/h1]
+[h1]Atlas of Qud — v1.0.2[/h1]
 
 This mod is a cartographic assistant to map your journey through the Caves of Qud. The Atlas of Qud contains a map of every area you visit, while preserving explored status. Not to mention the Atlas features a pull-up world map that pinpoints your location even in the subterranean depths. See the Caves of Qud from a new perspective!
 
@@ -59,6 +59,10 @@ v1.0.0
 - Initial Release
 v1.0.1
 - Improved performance for large map areas. Layer switching and zoomed-out views now load visible map tiles progressively, prioritizing the center of the current view.
+v1.0.2 
+- Improved performance while panning and zooming large Atlas layers.
+- Atlas now keeps loaded tiles for the active layer instead of unloading them when they leave the viewport.
+- Large layers still load progressively, prioritizing tiles nearest the center of view
 
 [h2]This mod works great with my other Caves of Qud mod: Subterranean Sites.[/h2]
 

@@ -116,3 +116,12 @@ smaller preview.png to try and fix workshop error
 
 - 30: 7/19/26 ~6:16pm
 v1.0.1 Load atlas tiles progressively
+
+- 31: 7/20/26 ~6:16pm
+v1.0.2 
+- Improved performance while panning and zooming large Atlas layers.
+- Atlas now keeps loaded tiles for the active layer instead of unloading them when they leave the viewport.
+- Large layers still load progressively, prioritizing tiles nearest the center of view
+
+- 32: 7/22/26 ~9:27pm
+Added mini tmumbnail generation for zoom out and repair capability on load.
