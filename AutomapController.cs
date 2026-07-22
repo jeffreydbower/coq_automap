@@ -548,11 +548,13 @@ namespace CoQAutoMap
 
                         byte[] pngBytes = mapTexture.EncodeToPNG();
 
-                        Directory.CreateDirectory(Path.GetDirectoryName(savePath));
-                        File.WriteAllBytes(savePath, pngBytes);
+                        if (!WriteAllBytesAtomic(savePath, pngBytes))
+                        {
+                            _captureError = "Failed to write automap tile: " + savePath;
+                            return;
+                        }
 
                         GenerateThumbnailForFullTile(savePath);
-                    }
                     catch (Exception ex)
                     {
                         _captureError = ex.GetType().Name + ": " + ex.Message;
@@ -611,15 +613,14 @@ namespace CoQAutoMap
             }
 
             MarkTileIndexDirty();
-            ClearLoadedZoneTiles();
+            UnloadCapturedTileIfLoaded(_capturePath);
 
             try
             {
                 TimeSpan elapsed = DateTime.Now - _captureStartTime;
 
-                if (!_captureLoadWhenComplete)
+                if (!_captureLoadWhenComplete || !_isOpen)
                 {
-
                     return;
                 }
 
@@ -641,6 +642,21 @@ namespace CoQAutoMap
             }
         }
 
+        private void UnloadCapturedTileIfLoaded(string capturedTilePath)
+        {
+            AutomapZoneCoord capturedCoord;
+
+            if (!TryGetFullTileCoordFromPath(capturedTilePath, out capturedCoord))
+            {
+                return;
+            }
+
+            string key = capturedCoord.ZoneId;
+
+            UnloadVisibleTile(key);
+            UnloadThumbnailTile(key);
+        }
+
         private string GetAutomapTileDirectory()
         {
             try
@@ -655,6 +671,59 @@ namespace CoQAutoMap
             }
 
             return DataManager.SavePath(Path.Combine("Automap", "tiles"));
+        }
+
+        private static bool WriteAllBytesAtomic(string path, byte[] bytes)
+        {
+            if (string.IsNullOrEmpty(path) || bytes == null)
+            {
+                return false;
+            }
+
+            string directory = Path.GetDirectoryName(path);
+
+            if (string.IsNullOrEmpty(directory))
+            {
+                return false;
+            }
+
+            string tempPath = path + ".tmp";
+
+            try
+            {
+                Directory.CreateDirectory(directory);
+
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+
+                File.WriteAllBytes(tempPath, bytes);
+
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+
+                File.Move(tempPath, path);
+
+                return true;
+            }
+            catch
+            {
+                try
+                {
+                    if (File.Exists(tempPath))
+                    {
+                        File.Delete(tempPath);
+                    }
+                }
+                catch
+                {
+                }
+
+                return false;
+            }
         }
 
         private static string MakeSafeFileName(string value)
@@ -886,10 +955,7 @@ namespace CoQAutoMap
 
                 byte[] thumbBytes = thumbTexture.EncodeToPNG();
 
-                Directory.CreateDirectory(Path.GetDirectoryName(thumbPath));
-                File.WriteAllBytes(thumbPath, thumbBytes);
-
-                return true;
+                return WriteAllBytesAtomic(thumbPath, thumbBytes);
             }
             catch
             {
@@ -906,92 +972,6 @@ namespace CoQAutoMap
                 {
                     UnityEngine.Object.Destroy(thumbTexture);
                 }
-            }
-        }
-
-        private bool RepairThumbnailCache(string source)
-        {
-            try
-            {
-                string automapDir = GetAutomapTileDirectory();
-
-                if (string.IsNullOrEmpty(automapDir))
-                {
-                    return false;
-                }
-
-                if (!Directory.Exists(automapDir))
-                {
-                    return true;
-                }
-
-                string[] pngFiles = Directory.GetFiles(automapDir, "*.png");
-
-                int checkedCount = 0;
-                int repairedCount = 0;
-                int skippedCount = 0;
-                int failedCount = 0;
-
-                for (int i = 0; i < pngFiles.Length; i++)
-                {
-                    string path = pngFiles[i];
-
-                    AutomapZoneCoord ignoredCoord;
-
-                    if (!TryGetFullTileCoordFromPath(path, out ignoredCoord))
-                    {
-                        skippedCount++;
-                        continue;
-                    }
-
-                    checkedCount++;
-
-                    if (IsThumbnailFresh(path))
-                    {
-                        continue;
-                    }
-
-                    if (GenerateThumbnailForFullTile(path))
-                    {
-                        repairedCount++;
-                    }
-                    else
-                    {
-                        failedCount++;
-                    }
-                }
-
-                if (repairedCount > 0)
-                {
-                    MarkTileIndexDirty();
-                }
-
-                SetCaptureStatus(
-                    source +
-                    ": thumbnail cache checked " +
-                    checkedCount +
-                    " full tile(s), repaired " +
-                    repairedCount +
-                    ", failed " +
-                    failedCount +
-                    ", skipped " +
-                    skippedCount +
-                    " non-full-tile PNG(s)"
-                );
-
-                return failedCount == 0;
-            }
-            catch (Exception ex)
-            {
-                SetCaptureStatus(
-                    source +
-                    ": thumbnail cache repair failed: " +
-                    ex.GetType().Name +
-                    ": " +
-                    ex.Message
-                );
-
-                return false;
             }
         }
 
@@ -1314,7 +1294,7 @@ namespace CoQAutoMap
         private const float ThumbnailModeEnterZoom = 0.18f;
         private const float ThumbnailModeExitZoom = 0.24f;
 
-        private const int FullTileBufferZones = 1;
+        private const int FullTileBufferZones = 0;
         private const int MaxThumbnailTileLoadsPerFrame = 256;
 
         private TileResolutionMode _tileResolutionMode = TileResolutionMode.Full;
@@ -1425,8 +1405,6 @@ namespace CoQAutoMap
                     skippedCount++;
                     continue;
                 }
-
-                string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
 
                 AutomapZoneCoord tileCoord;
 

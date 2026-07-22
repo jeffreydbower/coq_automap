@@ -127,4 +127,7 @@ v1.0.2
 Added mini tmumbnail generation for zoom out and repair capability on load.
 
 - 33: 7/22/26 ~10:39pm
-Implemented thumbail rendering below fullsize tiles and makes appear at zoom threshold. Also, diplay rules for both layers. it works great at 450 zones. prepairing for 18000 zone stress test!
+Implemented thumbail rendering below fullsize tiles and makes appear at zoom threshold. Also, diplay rules for both layers. it works great at 450 zones. prepairing for 18000 zone stress test.
+
+- 34: 7/22/26 ~10:39pm
+Some tuning from successful 18k zone test. refactor. code release ready for v1.0.3, but adding another feature first.

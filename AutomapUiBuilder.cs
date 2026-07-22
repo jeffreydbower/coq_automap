@@ -46,6 +46,18 @@ namespace CoQAutoMap
                 return;
             }
 
+            AutomapZoneCoord currentCoord;
+
+            if (!TryGetCurrentZoneCoord(out currentCoord))
+            {
+                Popup.Show(
+                    "Atlas can only be opened while you are exploring a local zone.\n\n" +
+                    "Close the world map or any special view and try again."
+                );
+
+                return;
+            }
+
             if (RepairThumbnailCacheIfNeededThisSession(source))
             {
                 return;
