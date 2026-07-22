@@ -285,8 +285,12 @@ namespace CoQAutoMap
     private UnityEngine.UI.Text _statusText;
     private UnityEngine.UI.Text _helpText;
     private RectTransform _mapPlane;
+
     private RectTransform _zoneTileContainer;
+    private RectTransform _thumbnailTileContainer;
+    private RectTransform _fullTileContainer;
     private RectTransform _mapViewportRect;
+
     private bool _isDraggingMap;
     private Vector2 _lastMousePosition;
 
@@ -658,6 +662,16 @@ namespace CoQAutoMap
         _zoneTileContainer.sizeDelta = Vector2.zero;
         _zoneTileContainer.localScale = Vector3.one;
 
+        _thumbnailTileContainer = CreateTileLayerContainer(
+            "ThumbnailTileContainer",
+            _zoneTileContainer.transform
+        );
+
+        _fullTileContainer = CreateTileLayerContainer(
+            "FullTileContainer",
+            _zoneTileContainer.transform
+        );
+
         // Viewport border overlay.
         // Four thin line images are safer than Unity's Outline component here,
         // because Outline duplicates full Image geometry and can create a filled rectangle.
@@ -696,6 +710,22 @@ namespace CoQAutoMap
             new Vector2(-1f, 0f),
             new Vector2(0f, 0f)
         );
+    }
+
+    private RectTransform CreateTileLayerContainer(string name, Transform parent)
+    {
+        UnityEngine.GameObject layerObject = new UnityEngine.GameObject(name);
+        layerObject.transform.SetParent(parent, false);
+
+        RectTransform rect = layerObject.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = Vector2.zero;
+        rect.localScale = Vector3.one;
+
+        return rect;
     }
 
     private void CreateViewportBorderLine(
