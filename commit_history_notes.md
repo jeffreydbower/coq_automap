@@ -131,3 +131,6 @@ Implemented thumbail rendering below fullsize tiles and makes appear at zoom thr
 
 - 34: 7/22/26 ~10:39pm
 Some tuning from successful 18k zone test. refactor. code release ready for v1.0.3, but adding another feature first.
+
+- 35: 7/22/26 ~9:36pm
+Added a marker on the world map overlay showing the parasang currently centered in the Atlas viewport. Wrapped up for release v1.0.3

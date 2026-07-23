@@ -831,10 +831,103 @@ namespace CoQAutoMap
             markerOutline.effectColor = new Color(0.9f, 1.0f, 0.35f, 0.45f);
 
             markerObject.SetActive(false);
+
+            // Viewport-center marker.
+            // This shows which world-map parasang contains the center of the Atlas viewport.
+            // Built from four thin line Images so there is no filled rectangle covering the map art.
+            UnityEngine.GameObject viewportCenterMarkerObject =
+                new UnityEngine.GameObject("WorldMapViewportCenterMarker");
+
+            viewportCenterMarkerObject.transform.SetParent(worldMapPlaneObject.transform, false);
+
+            _worldMapViewportCenterMarker =
+                viewportCenterMarkerObject.AddComponent<RectTransform>();
+
+            _worldMapViewportCenterMarker.anchorMin = new Vector2(0.5f, 0.5f);
+            _worldMapViewportCenterMarker.anchorMax = new Vector2(0.5f, 0.5f);
+            _worldMapViewportCenterMarker.pivot = new Vector2(0.5f, 0.5f);
+
+            // One world-map parasang is 16 x 24 pixels.
+            // Slightly oversized so the outline frames the parasang cleanly.
+            _worldMapViewportCenterMarker.sizeDelta = new Vector2(18f, 26f);
+            _worldMapViewportCenterMarker.anchoredPosition = Vector2.zero;
+
+            Color viewportMarkerColor = new Color(1.0f, 0.05f, 0.05f, 0.95f);
+
+            CreateWorldMapMarkerLine(
+                "WorldMapViewportCenterMarkerTop",
+                viewportCenterMarkerObject.transform,
+                new Vector2(0f, 1f),
+                new Vector2(1f, 1f),
+                new Vector2(0f, -1f),
+                new Vector2(0f, 0f),
+                viewportMarkerColor
+            );
+
+            CreateWorldMapMarkerLine(
+                "WorldMapViewportCenterMarkerBottom",
+                viewportCenterMarkerObject.transform,
+                new Vector2(0f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(0f, 0f),
+                new Vector2(0f, 1f),
+                viewportMarkerColor
+            );
+
+            CreateWorldMapMarkerLine(
+                "WorldMapViewportCenterMarkerLeft",
+                viewportCenterMarkerObject.transform,
+                new Vector2(0f, 0f),
+                new Vector2(0f, 1f),
+                new Vector2(0f, 0f),
+                new Vector2(1f, 0f),
+                viewportMarkerColor
+            );
+
+            CreateWorldMapMarkerLine(
+                "WorldMapViewportCenterMarkerRight",
+                viewportCenterMarkerObject.transform,
+                new Vector2(1f, 0f),
+                new Vector2(1f, 1f),
+                new Vector2(-1f, 0f),
+                new Vector2(0f, 0f),
+                viewportMarkerColor
+            );
+
+            viewportCenterMarkerObject.SetActive(false);
+
             worldMapRoot.SetActive(false);
         }
 
-         private UnityEngine.GameObject CreatePanel(string name, Transform parent, Color color)
+        private void CreateWorldMapMarkerLine(
+            string name,
+            Transform parent,
+            Vector2 anchorMin,
+            Vector2 anchorMax,
+            Vector2 offsetMin,
+            Vector2 offsetMax,
+            Color color
+        )
+        {
+            UnityEngine.GameObject lineObject = new UnityEngine.GameObject(name);
+            lineObject.transform.SetParent(parent, false);
+
+            RectTransform rect = lineObject.AddComponent<RectTransform>();
+            rect.anchorMin = anchorMin;
+            rect.anchorMax = anchorMax;
+            rect.offsetMin = offsetMin;
+            rect.offsetMax = offsetMax;
+
+            Image image = lineObject.AddComponent<Image>();
+            image.color = color;
+            image.raycastTarget = false;
+
+            Outline outline = lineObject.AddComponent<Outline>();
+            outline.effectDistance = new Vector2(0.5f, -0.5f);
+            outline.effectColor = new Color(0f, 0f, 0f, 0.35f);
+        }
+
+        private UnityEngine.GameObject CreatePanel(string name, Transform parent, Color color)
         {
             UnityEngine.GameObject panel = new UnityEngine.GameObject(name);
             panel.transform.SetParent(parent, false);
@@ -939,6 +1032,7 @@ namespace CoQAutoMap
         private Texture2D _worldMapTexture;
         private bool _worldMapVisible;
         private RectTransform _worldMapTargetMarker;
+        private RectTransform _worldMapViewportCenterMarker;
         
          private void ToggleWorldMapOverlay()
         {
@@ -1003,6 +1097,65 @@ namespace CoQAutoMap
             return dx * dx + dy * dy;
         }
 
+        private bool TryGetViewportCenterParasang(
+            out int parasangX,
+            out int parasangY
+        )
+        {
+            parasangX = -1;
+            parasangY = -1;
+
+            AutomapZoneCoord currentCoord;
+
+            if (!TryGetCurrentZoneCoord(out currentCoord))
+            {
+                return false;
+            }
+
+            int centerGlobalX;
+            int centerGlobalY;
+
+            GetViewportCenterGlobalZone(
+                currentCoord,
+                out centerGlobalX,
+                out centerGlobalY
+            );
+
+            if (centerGlobalX < 0 || centerGlobalY < 0)
+            {
+                return false;
+            }
+
+            parasangX = centerGlobalX / 3;
+            parasangY = centerGlobalY / 3;
+
+            if (parasangX < 0 ||
+                parasangX >= 80 ||
+                parasangY < 0 ||
+                parasangY >= 25)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool TryGetViewportCenterWorldMapLocation(out Location2D location)
+        {
+            location = null;
+
+            int parasangX;
+            int parasangY;
+
+            if (!TryGetViewportCenterParasang(out parasangX, out parasangY))
+            {
+                return false;
+            }
+
+            location = Location2D.Get(parasangX, parasangY);
+            return true;
+        }
+
         private void RenderWorldMapOverlay(string source)
         {
             try
@@ -1022,6 +1175,10 @@ namespace CoQAutoMap
                     SetCaptureStatus(source + ": could not get current world map location.");
                     return;
                 }
+
+                Location2D viewportCenterLocation;
+                bool hasViewportCenterLocation =
+                TryGetViewportCenterWorldMapLocation(out viewportCenterLocation);
 
                 int width = 1280;
                 int height = 600;
@@ -1099,6 +1256,25 @@ namespace CoQAutoMap
                                         tileHeight
                                     );
 
+                                    if (hasViewportCenterLocation)
+                                    {
+                                        float viewportCenterDistanceSquared =
+                                            GetWorldMapHighlightDistanceSquared(
+                                                viewportCenterLocation,
+                                                x,
+                                                y,
+                                                px,
+                                                py,
+                                                tileWidth,
+                                                tileHeight
+                                            );
+
+                                        distanceSquared = Mathf.Min(
+                                            distanceSquared,
+                                            viewportCenterDistanceSquared
+                                        );
+                                    }
+
                                     float t = distanceSquared >= 2400.0f
                                         ? 1f
                                         : Mathf.Min(
@@ -1136,6 +1312,7 @@ namespace CoQAutoMap
                 _worldMapPlane.localScale = Vector3.one;
 
                 PositionWorldMapTargetMarker(playerLocation.X, playerLocation.Y);
+                PositionWorldMapViewportCenterMarker();
 
                 SetCaptureStatus(
                     source +
@@ -1186,6 +1363,44 @@ namespace CoQAutoMap
 
             _worldMapTargetMarker.anchoredPosition = new Vector2(markerX, markerY);
             _worldMapTargetMarker.gameObject.SetActive(true);
+        }
+
+        private void PositionWorldMapViewportCenterMarker()
+        {
+            if (_worldMapViewportCenterMarker == null)
+            {
+                return;
+            }
+
+            int parasangX;
+            int parasangY;
+
+            if (!TryGetViewportCenterParasang(out parasangX, out parasangY))
+            {
+                _worldMapViewportCenterMarker.gameObject.SetActive(false);
+                return;
+            }
+
+            float cellWidth = 16f;
+            float cellHeight = 24f;
+
+            float mapWidth = 1280f;
+            float mapHeight = 600f;
+
+            float markerX =
+                -mapWidth / 2f +
+                parasangX * cellWidth +
+                cellWidth / 2f;
+
+            float markerY =
+                mapHeight / 2f -
+                parasangY * cellHeight -
+                cellHeight / 2f;
+
+            _worldMapViewportCenterMarker.anchoredPosition =
+                new Vector2(markerX, markerY);
+
+            _worldMapViewportCenterMarker.gameObject.SetActive(true);
         }
 
         //#####################################################    

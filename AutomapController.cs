@@ -555,6 +555,7 @@ namespace CoQAutoMap
                         }
 
                         GenerateThumbnailForFullTile(savePath);
+                    }
                     catch (Exception ex)
                     {
                         _captureError = ex.GetType().Name + ": " + ex.Message;
